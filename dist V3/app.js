@@ -20,6 +20,7 @@
         mostrarAusencias: true,
         mostrarResumen: true,
         darkMode: true,
+        nombreCentro: 'IES Fuerte de Cortadura',
         mostrarGaleria: false,
         urlGaleria: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTfog7Cm412oghVvVasz_XUTy2lgR7x_kb_cxvVWYAsdGBIa6FocVqd4syiBKcCDiz1jKtV0Qtfso0D/pub?output=csv',
         galeriaIntervalo: 7000,
@@ -51,6 +52,7 @@
     var CACHE_KEY = 'kiosco_data_cache';
     var STATE = {};
     var cfg = loadConfig();
+    applyURLConfig(cfg);
 
     function loadConfig() {
         var saved = null;
@@ -69,6 +71,51 @@
 
     function saveConfig() {
         try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) { /* sin espacio */ }
+    }
+
+    /* Permite preconfigurar cada TV por URL sin tocar la pantalla.
+       Los parámetros se aplican ENCIMA de la config guardada/local. */
+    function applyURLConfig(c) {
+        var qs = window.location.search;
+        if (!qs) return;
+        function q(name) {
+            var m = new RegExp('[?&]' + name + '=([^&]*)').exec(qs);
+            if (!m) return null;
+            try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); }
+            catch (e) { return m[1]; }
+        }
+        var v;
+        // intervalos: por URL se pasan en SEGUNDOS, config los guarda en ms
+        v = q('rotacion');        if (v) c.rotacionIntervalo = Number(v) * 1000;
+        v = q('actualizacion');   if (v) c.actualizacionDatos = Number(v) * 1000;
+        v = q('galeriaintervalo'); if (v) c.galeriaIntervalo = Number(v) * 1000;
+        v = q('duroverride');     if (v) c.gardiaOverrideDuration = Number(v);
+        // flags 0/1
+        var flags = {
+            guardias: 'mostrarGuardias', ausencias: 'mostrarAusencias', resumen: 'mostrarResumen',
+            galeria: 'mostrarGaleria', rss: 'rssEnabled', tiempo: 'weatherEnabled',
+            override: 'guardiaOverrideEnabled', dark: 'darkMode'
+        };
+        for (var f in flags) {
+            if (flags.hasOwnProperty(f)) {
+                v = q(f);
+                if (v !== null) c[flags[f]] = (v === '1' || v === 'true' || v === 'si');
+            }
+        }
+        // valores directos
+        var vals = {
+            pin: 'adminPin', centro: 'nombreCentro',
+            urlguardias: 'urlGuardias', urlausencias: 'urlAusencias',
+            urlalertas: 'urlAlertas', urlgaleria: 'urlGaleria',
+            lat: 'weatherLat', lon: 'weatherLon', ciudad: 'weatherCity',
+            urlrss: 'urlRss', titulorss: 'tituloRss'
+        };
+        for (var k in vals) {
+            if (vals.hasOwnProperty(k)) {
+                v = q(k);
+                if (v) c[vals[k]] = v;
+            }
+        }
     }
 
     function cloneObj(o) {
@@ -177,8 +224,13 @@
     function convertSheetUrl(u) {
         if (!u) return '';
         if (u.indexOf('hhttps') === 0) u = u.slice(1);
-        if (u.indexOf('/pubhtml') !== -1) return u.replace('/pubhtml', '/pub?output=csv');
-        return u.replace(/\/edit.*$/, '/export?format=csv');
+        if (u.indexOf('/pubhtml') !== -1) u = u.replace('/pubhtml', '/pub?output=csv');
+        else u = u.replace(/\/edit.*$/, '/export?format=csv');
+        // Google cachea el CSV exportado (max-age=300, ~5 min);
+        // un parámetro único por descarga lo salta y los datos llegan al momento.
+        var sep = (u.indexOf('?') === -1) ? '?' : '&';
+        u += sep + '_cb=' + new Date().getTime();
+        return u;
     }
 
     var PROXIES = [
@@ -633,7 +685,7 @@
         var list = STATE.screenList;
         if (!list.length) {
             swapScreen('<div class="screen">' +
-                '<div class="scr-title">Kiosco I.E.S. Fuerte de Cortadura</div>' +
+                '<div class="scr-title">Kiosco ' + esc(cfg.nombreCentro || '') + '</div>' +
                 '<div class="loading">No hay pantallas activas.<br/>Pulsa ⚙️ para configurar.</div></div>', null);
             return;
         }
@@ -791,7 +843,7 @@
     /* -------- GUARDIA -------- */
     function renderGuardia() {
         var html = '<div class="screen"><div class="screen-inner">';
-        html += '<div class="scr-title">Cuadrante de Guardias I.E.S. "Fuerte de Cortadura"' + (STATE.isGuardiaOverride ? ' <span style="color:#f59e0b">— Modo Guardia</span>' : '') + '</div>';
+        html += '<div class="scr-title">Cuadrante de Guardias ' + esc(cfg.nombreCentro || '') + (STATE.isGuardiaOverride ? ' <span style="color:#f59e0b">— Modo Guardia</span>' : '') + '</div>';
         if (STATE.isGuardiaOverride) {
             html += '<div style="text-align:center"><button id="cancelOverride" class="cancelOverride" onclick="KioscoCancelOverride()">⏹ Cancelar Espera (' + Math.floor(STATE.overrideLeft / 60) + ':' + pad2(STATE.overrideLeft % 60) + ')</button></div>';
         }
@@ -962,14 +1014,11 @@
         var idx = STATE.currentTramoIndex;
 
         var totalGuardias = 0;
-        for (var d in guardiasDeHoy) {
-            if (!guardiasDeHoy.hasOwnProperty(d)) continue;
-            for (var tr in guardiasDeHoy[d]) {
-                if (!guardiasDeHoy[d].hasOwnProperty(tr)) continue;
-                var arr = guardiasDeHoy[d][tr];
-                for (var g = 0; g < arr.length; g++) {
-                    totalGuardias += arr[g].profesores.length;
-                }
+        for (var tr in guardiasDeHoy) {
+            if (!guardiasDeHoy.hasOwnProperty(tr)) continue;
+            var arr = guardiasDeHoy[tr];
+            for (var g = 0; g < arr.length; g++) {
+                totalGuardias += arr[g].profesores.length;
             }
         }
 
@@ -1328,7 +1377,7 @@
         DOC.getElementById('cfgRotacion').value = (cfg.rotacionIntervalo / 1000) || 20;
         DOC.getElementById('cfgActualizacion').value = (cfg.actualizacionDatos / 1000) || 60;
         DOC.getElementById('cfgGuardiaOverride').checked = cfg.guardiaOverrideEnabled !== false;
-        DOC.getElementById('cfgOverrideDur').value = cfg.gardiaOverrideDuration || 200;
+        DOC.getElementById('cfgOverrideDur').value = cfg.guardiaOverrideDuration || 200;
         DOC.getElementById('cfgAdminPin').value = cfg.adminPin || '';
         DOC.getElementById('configModal').style.display = 'block';
     }
@@ -1353,7 +1402,7 @@
         cfg.rotacionIntervalo = (Number(DOC.getElementById('cfgRotacion').value) || 20) * 1000;
         cfg.actualizacionDatos = (Number(DOC.getElementById('cfgActualizacion').value) || 60) * 1000;
         cfg.gardiaOverrideEnabled = DOC.getElementById('cfgGuardiaOverride').checked;
-        cfg.gardiaOverrideDuration = Number(DOC.getElementById('cfgOverrideDur').value) || 200;
+        cfg.guardiaOverrideDuration = Number(DOC.getElementById('cfgOverrideDur').value) || 200;
         cfg.adminPin = DOC.getElementById('cfgAdminPin').value.trim() || cfg.adminPin;
 
         saveConfig();
@@ -1395,6 +1444,12 @@
         // favicon opcional
         restoreCache();
 
+        fitScreen();
+        window.addEventListener('resize', fitScreen, false);
+
+        DOC.title = 'Kiosco ' + cfg.nombreCentro;
+        tryFullscreen();
+
         DOC.getElementById('configBtn').tabIndex = 0;
         bindModals();
 
@@ -1432,6 +1487,43 @@
         if (cfg.darkMode === false) {
             DOC.body.style.background = '#f8fafc';
         }
+    }
+
+    /* Pantalla completa de kiosco: compatible con WebKit viejo (webkitRequestFullscreen) */
+    /* Ajuste contra el recorte de la TV (overscan/chrome del navegador):
+       si la altura del área visible es menor que la de diseño (1080p),
+       escala todo el kiosco con zoom (WebKit lo soporta) y deja un
+       borde de seguridad del 5% para que nada se corte por abajo. */
+    function fitScreen() {
+        var canZoom = false;
+        try { canZoom = ('zoom' in DOC.body.style); } catch (e) { canZoom = false; }
+        if (!canZoom) return;
+        var h = window.innerHeight || DOC.documentElement.clientHeight || 1080;
+        var baseH = 1080;
+        var s = Math.min((h / baseH) * 0.95, 1);
+        try { DOC.body.style.zoom = String(s); } catch (e) { /* sin zoom */ }
+    }
+
+    function requestKioskFullscreen() {
+        var el = DOC.documentElement;
+        var fns = ['requestFullscreen', 'webkitRequestFullscreen', 'mozRequestFullScreen', 'msRequestFullscreen'];
+        for (var i = 0; i < fns.length; i++) {
+            try {
+                if (typeof el[fns[i]] === 'function') { el[fns[i]].call(el); return; }
+            } catch (e) { /* la TV no lo permite */ }
+        }
+    }
+
+    function tryFullscreen() {
+        requestKioskFullscreen();
+        // En TV a veces hace falta una interacción del usuario; reintentar al primer uso
+        var first = function () {
+            requestKioskFullscreen();
+            DOC.removeEventListener('keydown', first, false);
+            DOC.removeEventListener('click', first, false);
+        };
+        DOC.addEventListener('keydown', first, false);
+        DOC.addEventListener('click', first, false);
     }
 
     // Exponer función global para el botón cancelar override (inline onclick)
