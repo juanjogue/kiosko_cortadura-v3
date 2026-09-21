@@ -74,6 +74,11 @@
   `Get-Process python | Stop-Process`.
 - Demo :8090: detenido.
 
+## Commits finales de la sesión
+
+- `92946c1` — dist V3: config por URL, fixes y guía para TV Engel.
+- `22e983d` — Documentación: README + notas de sesión.
+
 ## Pendientes / próximos pasos sugeridos
 
 1. **Ausencias**: confirmar si hay datos en OTRA pestaña de la hoja; si es así, actualizar
