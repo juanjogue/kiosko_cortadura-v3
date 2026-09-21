@@ -82,7 +82,7 @@ https://nombre-aleatorio.netlify.app/?rotacion=30&pin=4321&rss=1&galeria=1&tiemp
 | `duroverride`          | Duración del modo "Guardia" (segundos)   | nº (p. ej. `200`)                    |
 | `pin`                  | PIN de administrador                     | 4-8 dígitos                          |
 | `centro`               | Nombre del centro (título en pantalla)   | texto URL-encoded                    |
-| `guardias` / `ausencias` / `resumen` | Mostrar/ocultar pantalla  | `1` o `0`                            |
+| `guardias` / `ausencias` / `actividades` / `resumen` | Mostrar/ocultar pantalla  | `1` o `0`                            |
 | `galeria`              | Activa la galería de imágenes            | `1` o `0`                            |
 | `rss`                  | Activa las noticias RSS                  | `1` o `0`                            |
 | `tiempo`               | Activa el tiempo meteorológico           | `1` o `0`                            |
@@ -91,10 +91,81 @@ https://nombre-aleatorio.netlify.app/?rotacion=30&pin=4321&rss=1&galeria=1&tiemp
 | `urlguardias`, `urlausencias`, `urlalertas`, `urlgaleria` | URLs de datos Google Sheets | URL completa                  |
 | `urlrss`, `titulorss`  | Feed RSS y su título                     | URL / texto                          |
 | `lat`, `lon`, `ciudad` | Ubicación del tiempo                     | coordenadas / texto                  |
+| `noidle`               | Desactiva la pantalla de reposo (ver sección 4.1) | `1`                         |
+| `idleinicio`, `idlefin` | Ventana de horario lectivo (reposo fuera de ella) | `HH:MM` (p. ej. `08:00`)    |
+| `demo`                 | Modo demo con datos ficticios (ver sección 4.1)   | `1` o `manana`              |
 
 > Los parámetros por URL se re-aplican en **cada carga** de la página, por lo que
 > si una URL los lleva, tienen prioridad sobre lo que se guarde desde la TV.
 > Para cambiar un valor de esa TV, quita su parámetro de la URL o edítala.
+>
+> **Importante**: los parámetros deben ir en la URL raíz
+> (`https://…/?demo=1`) y no en `…/index.html?demo=1`, porque algunos
+> servidores redirigen `index.html` a la raíz y **pierden la query**.
+
+### 4.1 Pantalla de reposo y modo demo
+
+**Pantalla de reposo (idle).** Fuera del horario lectivo el kiosco muestra
+automáticamente una pantalla de reposo con el reloj grande, la fecha, el
+horario del centro y, si están activos, el tiempo y la galería en miniatura.
+Al llegar la hora de clases vuelve sola a la rotación normal. Sirve para no
+desgastar la TV ni confundir de noche con un cuadrante vacío.
+
+- La ventana de horario lectivo es configurable: por defecto entra en reposo
+  a las **14:50** y sale a las **08:00** (`idleInicio` / `idleFin` en
+  `app.js`, o por URL con `?idleinicio=08:00&idlefin=14:50`).
+- Los **fines de semana** está siempre en reposo.
+- Si necesitas ver el cuadrante fuera de horario (p. ej. para comprobar
+  algo un lunes a las 20:00), abre la URL con `?noidle=1`.
+
+**Modo demo (`?demo=1`).** Genera datos ficticios (guardias, ausencias con
+tareas, alerta naranja en la marquesina) y un horario deslizante alrededor de
+la hora actual, de modo que **siempre** hay un tramo "AHORA" y un "SIGUIENTE"
+visibles. Es la forma más rápida de comprobar que una TV recién instalada
+renderiza todo bien, sin depender de las hojas de cálculo reales.
+
+```
+https://nombre-aleatorio.netlify.app/?demo=1
+```
+
+**Variante horario de mañana (`?demo=manana`).** Igual que el demo, pero
+adelanta el reloj ficticio a las **10:25** y usa el horario real del centro
+(08:15-14:45): el tramo 3 aparece como "AHORA", el RECREO como "SIGUIENTE" y
+el cuadrante muestra horas de mañana reales. Ideal para capturas y para ver
+cómo quedará la pantalla en horario lectivo.
+
+```
+https://nombre-aleatorio.netlify.app/?demo=manana
+```
+
+- La marquesina avisa con "DATOS FICTICIOS DE PRUEBA".
+- Los parámetros `demo` y `noidle` **no se guardan** en la configuración:
+  solo duran mientras esa URL los lleve.
+
+### 4.2 Pantalla de actividades previstas (📅)
+
+La pantalla **"Actividades Previstas"** lee una **hoja de cálculo propia**
+(por defecto la del centro, ya preconfigurada; editable en ⚙️ → "URL
+Actividades" o por URL con `?urlactividades=…`).
+
+Columnas que entiende la hoja:
+
+| Columna          | Uso en pantalla                                              |
+|------------------|--------------------------------------------------------------|
+| `ACTIVIDAD`      | Título (obligatorio; fila vacía = se ignora)                 |
+| `FECHA`          | Día (obligatorio; se muestra de **hoy en adelante**)         |
+| `HORA COMIENZO` / `HORA FIN` | Horario (`0:00` se trata como sin hora)          |
+| `LUGAR`          | 📍 Se muestra en azul                                        |
+| `ALUMNADO IMPLICADO` | 👥 Grupos implicados                                     |
+| `PROFESOR1..3`   | Profesores responsables (ignora `Ninguno`; acepta "Apellido, Nombre") |
+| `DEPARTAMENTO`   | 🏫 Departamento                                              |
+| `OBSERVACIONES`  | 📝 Nota en cursiva                                           |
+
+Reglas:
+
+- Ordenadas por fecha; la de **hoy** se destaca en ámbar con la etiqueta "HOY".
+- Al pasar la fecha, la actividad desaparece sola.
+- Para ocultar una actividad futura, borra la fila o vacía su `FECHA`.
 
 ---
 
@@ -126,6 +197,7 @@ Para que el kiosco se quede fijo y no se apague:
 | El reloj / timbre no coincide     | Franjas horarias distintas a tu centro por URL          | Edita ⚙️ → PIN (o `centro`/horarios por URL no disponibles: cambia en `app.js`) |
 | Galería no muestra imágenes       | Las celdas del Excel no tienen URLs válidas            | Revisa que la hoja tenga una columna con enlaces `http(s)://`             |
 | Emojis se ven como cuadrados      | El WebKit de la TV no tiene esa tipografía emoji        | Normal en TV antiguas; el texto alfanumérico sigue funcionando            |
+| Solo se ve un reloj grande        | Fuera del horario escolar (pantalla de reposo)          | Es el comportamiento normal; usa `?noidle=1` si necesitas ver el cuadrante |
 
 ### Datos técnicos
 
@@ -134,6 +206,9 @@ Para que el kiosco se quede fijo y no se apague:
   hay internet el kiosco muestra la última información cargada.
 - **Proxies CORS** integrados: `allorigins.win` y `corsproxy.io` (en ese orden)
   si el navegador de la TV bloquea la descarga directa.
+- **Recarga automática nocturna**: a las **03:00** el kiosco se recarga solo
+  (una vez al día) para limpiar la memoria del navegador antiguo en TVs
+  encendidas 24/7.
 
 ---
 

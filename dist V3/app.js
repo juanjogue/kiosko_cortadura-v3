@@ -18,6 +18,7 @@
         actualizacionDatos: 60000,
         mostrarGuardias: true,
         mostrarAusencias: true,
+        mostrarActividades: true,
         mostrarResumen: true,
         darkMode: true,
         nombreCentro: 'IES Fuerte de Cortadura',
@@ -33,6 +34,7 @@
         weatherCity: 'Cádiz',
         urlGuardias: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTys484unlw9HouZLvfaT1HeV9zdn24jGzcT-F7__EMQG-0tuu1ylXHg6MpklCkwQDojfed4B8aKDot/pub?output=csv',
         urlAusencias: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vShyK5np1YxNiTfE36yvmR05zFO4ji0-_YW-6UMmKJ3AopDDsZW5Hz1lmzcNfyadtt51-gs5aNx4XER/pub?gid=2111711524&single=true&output=csv',
+        urlActividades: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU6-MIrAOXPRcRArrkMECyDdtxBFmezookCWJtjBJ9_eQOpZ_An7H3ZiJqr1_-k0L-Tp3cHvyve5lk/pub?output=csv',
         urlAlertas: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTv9D9yD--6U2rS7LcPy8lwc9O0THHUU96UPju2y4US4bW5OXAe-70sPcV95gW0XfdEE72D3WnExMVr/pub?output=csv',
         horarios: [
             { tramo: '1', inicio: '08:15', fin: '09:15' },
@@ -45,7 +47,9 @@
         ],
         guardiaOverrideEnabled: true,
         guardiaOverrideDuration: 200,
-        adminPin: '1234'
+        adminPin: '1234',
+        idleInicio: '08:00',
+        idleFin: '14:50'
     };
 
     var CONFIG_KEY = 'kiosco_config';
@@ -70,7 +74,13 @@
     }
 
     function saveConfig() {
-        try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) { /* sin espacio */ }
+        try {
+            // los flags de prueba por URL no deben persistir entre sesiones
+            var copy = cloneObj(cfg);
+            copy.demoMode = false;
+            copy.noIdle = false;
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(copy));
+        } catch (e) { /* sin espacio */ }
     }
 
     /* Permite preconfigurar cada TV por URL sin tocar la pantalla.
@@ -90,9 +100,14 @@
         v = q('actualizacion');   if (v) c.actualizacionDatos = Number(v) * 1000;
         v = q('galeriaintervalo'); if (v) c.galeriaIntervalo = Number(v) * 1000;
         v = q('duroverride');     if (v) c.gardiaOverrideDuration = Number(v);
+        v = q('noidle');          if (v === '1' || v === 'true' || v === 'si') c.noIdle = true;
+        v = q('demo');
+        if (v === '1' || v === 'true' || v === 'si') c.demoMode = '1';
+        else if (v === 'manana' || v === 'ma\u00f1ana') { c.demoMode = 'manana'; installFakeClock('10:25'); }
         // flags 0/1
         var flags = {
-            guardias: 'mostrarGuardias', ausencias: 'mostrarAusencias', resumen: 'mostrarResumen',
+            guardias: 'mostrarGuardias', ausencias: 'mostrarAusencias', actividades: 'mostrarActividades',
+            resumen: 'mostrarResumen',
             galeria: 'mostrarGaleria', rss: 'rssEnabled', tiempo: 'weatherEnabled',
             override: 'guardiaOverrideEnabled', dark: 'darkMode'
         };
@@ -107,8 +122,10 @@
             pin: 'adminPin', centro: 'nombreCentro',
             urlguardias: 'urlGuardias', urlausencias: 'urlAusencias',
             urlalertas: 'urlAlertas', urlgaleria: 'urlGaleria',
+            urlactividades: 'urlActividades',
             lat: 'weatherLat', lon: 'weatherLon', ciudad: 'weatherCity',
-            urlrss: 'urlRss', titulorss: 'tituloRss'
+            urlrss: 'urlRss', titulorss: 'tituloRss',
+            idleinicio: 'idleInicio', idlefin: 'idleFin'
         };
         for (var k in vals) {
             if (vals.hasOwnProperty(k)) {
@@ -142,6 +159,15 @@
         var norm = trim(diaStr).toLowerCase();
         norm = norm.replace(/[\u0300-\u036f]/g, '');
         return norm.charAt(0).toUpperCase() + norm.slice(1);
+    }
+
+    /* "Apellido, Nombre" -> "Nombre Apellido" */
+    function formatNombre(nom) {
+        var n = trim(nom);
+        if (n.indexOf(',') !== -1) {
+            n = n.split(',').map(function (p) { return trim(p); }).reverse().join(' ');
+        }
+        return n;
     }
 
     function formatToDDMMYYYY(dateValue) {
@@ -425,11 +451,11 @@
        ========================================================== */
     STATE = {
         guardias: [], guardiasPorTramo: {},
-        ausencias: [], alertas: [], galeria: [],
+        ausencias: [], alertas: [], actividades: [], galeria: [],
         galIdx: 0,
         lastUpdate: null,
         alertasActivas: [], activeAlert: null, alertIndex: 0,
-        screenList: [], screenIdx: 0,
+        screenList: [], screenIdx: 0, currentScreenType: null,
         isGuardiaOverride: false, overrideLeft: 0,
         currentTramo: null, currentTramoIndex: -1, tramoProgress: 0,
         nextEvent: null, timeLeftSeconds: 0,
@@ -446,6 +472,7 @@
             if (!raw) return;
             var c = JSON.parse(raw);
             if (c.ausencias) STATE.ausencias = c.ausencias;
+            if (c.actividades) STATE.actividades = c.actividades;
             if (c.alertas) { STATE.alertas = c.alertas; computeAlertasActivas(); }
             if (c.galeria) STATE.galeria = c.galeria;
             if (c.guardias) {
@@ -461,6 +488,7 @@
             localStorage.setItem(CACHE_KEY, JSON.stringify({
                 guardias: STATE.guardias,
                 ausencias: STATE.ausencias,
+                actividades: STATE.actividades,
                 alertas: STATE.alertas,
                 galeria: STATE.galeria,
                 lastUpdate: STATE.lastUpdate ? STATE.lastUpdate.toISOString() : null
@@ -479,7 +507,134 @@
         return map;
     }
 
+    /* ==========================================================
+       5bis. MODO DEMO (datos ficticios, ?demo=1 en la URL)
+       ?demo=1       -> horario deslizante alrededor de la hora real
+       ?demo=manana  -> reloj ficticio 10:25 + horario real de mañana
+       ========================================================== */
+    /* Sustituye Date por una versión desplazada para que TODA la app
+       (reloj, timbre, tramo actual, alertas...) crea que son las hh:mm */
+    function installFakeClock(hhmm) {
+        var Real = Date;
+        var p = String(hhmm).split(':');
+        var target = new Real();
+        target.setHours(parseInt(p[0], 10) || 0, parseInt(p[1], 10) || 0, 0, 0);
+        var offset = target.getTime() - Real.now();
+        function FDate(a, b, c, d, e, f, g) {
+            var n = arguments.length;
+            if (n === 0) return new Real(Real.now() + offset);
+            if (n === 1) return new Real(a);
+            if (n === 2) return new Real(a, b);
+            if (n === 3) return new Real(a, b, c);
+            if (n === 4) return new Real(a, b, c, d);
+            if (n === 5) return new Real(a, b, c, d, e);
+            if (n === 6) return new Real(a, b, c, d, e, f);
+            return new Real(a, b, c, d, e, f, g);
+        }
+        FDate.prototype = Real.prototype;
+        FDate.now = function () { return Real.now() + offset; };
+        FDate.parse = Real.parse;
+        FDate.UTC = Real.UTC;
+        window.Date = FDate;
+    }
+
+    function buildDemoHorarios() {
+        function hm(t) { return pad2(t.getHours()) + ':' + pad2(t.getMinutes()); }
+        function addMin(mins) { return new Date(Date.now() + mins * 60000); }
+        return [
+            { tramo: '1', inicio: hm(addMin(-10)), fin: hm(addMin(20)) },
+            { tramo: '2', inicio: hm(addMin(20)), fin: hm(addMin(50)) },
+            { tramo: 'RECREO', inicio: hm(addMin(50)), fin: hm(addMin(80)) },
+            { tramo: '3', inicio: hm(addMin(80)), fin: hm(addMin(110)) },
+            { tramo: '4', inicio: hm(addMin(110)), fin: hm(addMin(140)) },
+            { tramo: '5', inicio: hm(addMin(140)), fin: hm(addMin(170)) },
+            { tramo: '6', inicio: hm(addMin(170)), fin: hm(addMin(200)) }
+        ];
+    }
+
+    function loadDemoData() {
+        var manana = cfg.demoMode === 'manana';
+        if (!manana) cfg.horarios = buildDemoHorarios();
+        var hoy = normalizeDayName(DIAS_SEMANA[new Date().getDay()]);
+        var ts = todayStr();
+        cfg.nombreCentro = cfg.nombreCentro || 'Centro Demo';
+
+        // tramo actual y siguiente según variante
+        var TR_A = manana ? '3' : '1';
+        var TR_S = manana ? '4' : '2';
+        var busyProfes = ['García López, Ana', 'Martín Ruiz, José Luis', 'Pérez Vega, Carmen', 'Sánchez Gil, David', 'Moreno Ruiz, Laura', 'Torres Peña, Javier', 'Ruiz Campos, Elena', 'Ortega Cano, Pablo'];
+
+        // Guardias: tramo actual con muchos profesores para probar la columna estrecha y el scroll
+        var demoGuardias = manana ? [
+            { tramo: TR_A, profesores: busyProfes },
+            { tramo: TR_S, profesores: ['García López, Ana', 'Benítez Rosa, Manuel'] },
+            { tramo: '5', profesores: ['Herrera Mesa, Sonia'] },
+            { tramo: '6', profesores: ['Vidal Pino, Sergio', 'Ríos Vega, Fernando'] }
+        ] : [
+            { tramo: '1', profesores: busyProfes },
+            { tramo: '2', profesores: ['García López, Ana', 'Benítez Rosa, Manuel'] },
+            { tramo: '3', profesores: ['Herrera Mesa, Sonia'] },
+            { tramo: '4', profesores: ['Vidal Pino, Sergio', 'García López, Ana'] },
+            { tramo: '5', profesores: ['Ríos Vega, Fernando'] },
+            { tramo: '6', profesores: ['Navarro Lara, Teresa'] }
+        ];
+        STATE.guardias = [];
+        for (var i = 0; i < demoGuardias.length; i++) {
+            STATE.guardias.push({ dia: hoy, tramo: demoGuardias[i].tramo, profesores: demoGuardias[i].profesores });
+        }
+        STATE.guardiasPorTramo = groupGuardias(STATE.guardias);
+
+        // Ausencias: dos ausentes en el tramo AHORA, otra en el SIGUIENTE, recreo con zona
+        var ausMaria = manana ? {
+            '3': { grupo: '1º ESO A', aula: 'Aula 24', tarea: 'Entregar los ejercicios 1 al 5 de la página 34 y avanzar con el tema de fracciones; lo tienen anotado en la libreta.' },
+            'RECREO': { grupo: '', zona: 'Patio de recreo', tarea: '' },
+            '4': { grupo: '3º ESO B', aula: 'Aula 12', tarea: 'Examen de repaso; los apuntes están sobre la mesa del aula.' }
+        } : {
+            '1': { grupo: '1º ESO A', aula: 'Aula 24', tarea: 'Entregar los ejercicios 1 al 5 de la página 34 y avanzar con el tema de fracciones; lo tienen anotado en la libreta.' },
+            '2': { grupo: '3º ESO B', aula: 'Aula 12', tarea: 'Examen de repaso; los apuntes están sobre la mesa del aula.' },
+            'RECREO': { grupo: '', zona: 'Patio de recreo', tarea: '' }
+        };
+        var ausJuan = manana ? {
+            '3': { grupo: '2º BACH C', aula: 'Lab. Física', tarea: 'Práctica de volumetrías; el material ya está preparado en el laboratorio.' }
+        } : {
+            '1': { grupo: '2º BACH C', aula: 'Lab. Física', tarea: 'Práctica de volumetrías; el material ya está preparado en el laboratorio.' }
+        };
+        var ausAna = manana ? {
+            '4': { grupo: '1º FP A', aula: 'Taller 2', tarea: '' }
+        } : {
+            '2': { grupo: '1º FP A', aula: 'Taller 2', tarea: '' }
+        };
+        STATE.ausencias = [
+            { profesor: 'Pérez Gómez, María', fecha: ts, horas: ausMaria },
+            { profesor: 'Castro Gil, Juan', fecha: ts, horas: ausJuan },
+            { profesor: 'Delgado Sosa, Ana Belén', fecha: ts, horas: ausAna }
+        ];
+
+        // Alerta ficticia para la marquesina
+        STATE.alertas = [{ fechaInicio: ts, fechaFin: '', horaInicio: '', horaFin: '',
+            mensaje: 'DATOS FICTICIOS DE PRUEBA (modo demo' + (manana ? ' · horario de mañana' : '') + ')', tipo: 'warning', activo: 'SI' }];
+
+        // Actividades de ejemplo (mismo formato que la hoja real)
+        var fAct = new Date();
+        fAct.setDate(fAct.getDate() + 4);
+        var fActStr = pad2(fAct.getDate()) + '/' + pad2(fAct.getMonth() + 1) + '/' + fAct.getFullYear();
+        STATE.actividades = [
+            { titulo: 'REUNIÓN DE DEPARTAMENTOS', departamento: 'Dirección', fecha: ts,
+                horaInicio: '12:45', horaFin: '13:45', profesores: ['García López, Ana'],
+                alumnado: '', lugar: 'Salón de actos', observaciones: '' },
+            { titulo: 'FERIA DE LA CIENCIA', departamento: 'Ciencias', fecha: fActStr,
+                horaInicio: '10:00', horaFin: '14:00', profesores: ['Martín Ruiz, José Luis', 'Pérez Vega, Carmen'],
+                alumnado: '1º ESO - 2º ESO', lugar: 'Patio del centro', observaciones: 'Traer las maquetas terminadas' }
+        ];
+
+        STATE.galeria = [];
+        STATE.lastUpdate = new Date();
+        computeAlertasActivas();
+        updateStatusText();
+    }
+
     function loadData() {
+        if (cfg.demoMode) { loadDemoData(); return; }
         var pending = 0, anyOk = false;
 
         function done() {
@@ -499,6 +654,7 @@
             anyOk = true; done();
         }
         function onAusencias(objs) { STATE.ausencias = procesarAusencias(objs); anyOk = true; done(); }
+        function onActividades(objs) { STATE.actividades = procesarActividades(objs); anyOk = true; done(); }
         function onAlertas(objs) { STATE.alertas = procesarAlertas(objs); computeAlertasActivas(); anyOk = true; done(); }
         function onGaleria(objs) { STATE.galeria = procesarGaleria(objs); anyOk = true; done(); }
 
@@ -527,6 +683,7 @@
 
         loadCsv(cfg.urlGuardias, onGuardias);
         loadCsv(cfg.urlAusencias, onAusencias);
+        loadCsv(cfg.urlActividades, onActividades);
         loadCsv(cfg.urlAlertas, onAlertas);
         loadGaleria();
 
@@ -571,6 +728,75 @@
         }
         STATE.alertasActivas = list;
         refreshAlert();
+    }
+
+    /* -------- ACTIVIDADES PREVISTAS (hoja propia) -------- */
+    var MESES_ABRE = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    var DIAS_ABRE = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+
+    function esTipoActividad(t) {
+        var n = trim(t).toLowerCase().replace(/[\u0300-\u036f]/g, '');
+        return n === 'actividad' || n === 'evento';
+    }
+
+    function parseFechaDDMMYYYY(s) {
+        if (!s) return null;
+        var p = String(s).split('/');
+        if (p.length < 3) return null;
+        var d = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+        return isNaN(d.getTime()) ? null : d.getTime();
+    }
+
+    /* Columnas de la hoja de actividades:
+       ACTIVIDAD, DEPARTAMENTO, FECHA, HORA COMIENZO, HORA FIN,
+       PROFESOR1, PROFESOR2, PROFESOR3, ALUMNADO IMPLICADO, LUGAR, OBSERVACIONES */
+    function procesarActividades(objs) {
+        var out = [];
+        for (var i = 0; i < objs.length; i++) {
+            var o = objs[i];
+            var tKey = findKey(o, ['actividad']);
+            if (!tKey) continue;
+            var titulo = trim(o[tKey]);
+            if (!titulo) continue;
+            var fKey = findKey(o, ['fecha']);
+            var fecha = fKey ? formatToDDMMYYYY(o[fKey]) : '';
+            if (!fecha) continue;
+            var hcKey = findKey(o, ['comienzo']);
+            var hfKey = findKey(o, ['hora fin']);
+            var depKey = findKey(o, ['departamento']);
+            var lugKey = findKey(o, ['lugar']);
+            var aluKey = findKey(o, ['alumnado']);
+            var obsKey = findKey(o, ['observacion']);
+            var hIni = hcKey ? trim(o[hcKey]) : '';
+            var hFin = hfKey ? trim(o[hfKey]) : '';
+            if (hIni === '0:00' || hIni === '00:00') hIni = '';
+            if (hFin === '0:00' || hFin === '00:00') hFin = '';
+            var profes = [];
+            for (var k in o) {
+                if (!o.hasOwnProperty(k)) continue;
+                if (k.toLowerCase().indexOf('profesor') === -1) continue;
+                var nom = trim(o[k]);
+                if (!nom) continue;
+                var nl = nom.toLowerCase().replace(/[\u0300-\u036f]/g, '');
+                if (nl === 'ninguno' || nl === 'no' || nl === '-') continue;
+                profes.push(formatNombre(nom));
+            }
+            out.push({
+                titulo: titulo,
+                departamento: depKey ? trim(o[depKey]) : '',
+                fecha: fecha,
+                horaInicio: hIni,
+                horaFin: hFin,
+                profesores: profes,
+                alumnado: aluKey ? trim(o[aluKey]) : '',
+                lugar: lugKey ? trim(o[lugKey]) : '',
+                observaciones: obsKey ? trim(o[obsKey]) : ''
+            });
+        }
+        out.sort(function (x, y) {
+            return (parseFechaDDMMYYYY(x.fecha) || 0) - (parseFechaDDMMYYYY(y.fecha) || 0);
+        });
+        return out;
     }
 
     function parseHM(h) {
@@ -665,6 +891,7 @@
         var list = [];
         if (cfg.mostrarGuardias) list.push({ type: 'guardia' });
         if (cfg.mostrarAusencias) list.push({ type: 'ausencias' });
+        if (cfg.mostrarActividades) list.push({ type: 'actividades' });
         if (cfg.mostrarResumen) list.push({ type: 'resumen' });
         if (cfg.mostrarGaleria && cfg.urlGaleria) list.push({ type: 'galeria' });
         if (cfg.rssEnabled && cfg.urlRss) list.push({ type: 'rss' });
@@ -682,7 +909,13 @@
     }
 
     function renderCurrent() {
+        if (isIdleTime()) {
+            STATE.currentScreenType = 'idle';
+            renderIdle();
+            return;
+        }
         var list = STATE.screenList;
+        STATE.currentScreenType = null;
         if (!list.length) {
             swapScreen('<div class="screen">' +
                 '<div class="scr-title">Kiosco ' + esc(cfg.nombreCentro || '') + '</div>' +
@@ -691,12 +924,14 @@
         }
         var idx = STATE.screenIdx % list.length;
         var item = list[idx];
+        STATE.currentScreenType = item.type;
         renderScreenType(item.type);
     }
 
     function renderScreenType(type) {
         if (type === 'guardia') renderGuardia();
         else if (type === 'ausencias') renderAusencias();
+        else if (type === 'actividades') renderActividades();
         else if (type === 'resumen') renderResumen();
         else if (type === 'galeria') renderGaleria();
         else if (type === 'rss') renderRSS();
@@ -704,9 +939,66 @@
         else renderCurrent();
     }
 
+    /* -------- IDLE (fuera de horario escolar) -------- */
+    function isIdleTime() {
+        if (cfg.noIdle || cfg.demoMode) return false;
+        var now = new Date();
+        if (now.getDay() === 0 || now.getDay() === 6) return true; // fin de semana
+        var ini = parseHM(cfg.idleInicio);
+        var fin = parseHM(cfg.idleFin);
+        if (ini === null || fin === null) return false;
+        var mins = now.getHours() * 60 + now.getMinutes();
+        return (mins < ini || mins >= fin);
+    }
+
+    function horarioRango() {
+        var horarios = cfg.horarios || [];
+        var ini = null, fin = null;
+        for (var i = 0; i < horarios.length; i++) {
+            if (horarios[i].tramo === 'RECREO') continue;
+            if (ini === null || horarios[i].inicio < ini) ini = horarios[i].inicio;
+            if (fin === null || horarios[i].fin > fin) fin = horarios[i].fin;
+        }
+        if (ini === null) return '';
+        return 'Clases: ' + ini + ' - ' + fin;
+    }
+
+    function updateIdleClock() {
+        var c = DOC.getElementById('idleClock');
+        if (!c) return;
+        var now = new Date();
+        c.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+        var d = DOC.getElementById('idleDate');
+        if (d) d.textContent = capitalizar(DIAS_SEMANA[now.getDay()]) + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()];
+    }
+
+    function renderIdle() {
+        var html = '<div class="screen"><div class="idleWrap">';
+        html += '<div class="idleClock" id="idleClock">--:--</div>';
+        html += '<div class="idleDate" id="idleDate"></div>';
+        var rango = horarioRango();
+        if (rango) html += '<div class="idleHorario">📘 ' + rango + '</div>';
+        if (STATE.weather && STATE.weather.current) {
+            var info = wmoInfo(STATE.weather.current.weather_code);
+            html += '<div class="idleWeather">' + info.icon + ' ' + Math.round(STATE.weather.current.temperature_2m) + '°C · ' + esc(cfg.weatherCity || '') + '</div>';
+        }
+        if (cfg.mostrarGaleria && cfg.urlGaleria && STATE.galeria.length) {
+            html += '<div class="idleGal" id="idleGal"></div>';
+        }
+        html += '</div></div>';
+        swapScreen(html, function () {
+            updateIdleClock();
+            if (DOC.getElementById('idleGal')) drawGaleria('idleGal');
+        });
+    }
+
     function scheduleRotation() {
         window.setInterval(function () {
             if (STATE.isGuardiaOverride) {
+                DOC.getElementById('progressFillRot').style.width = '100%';
+                return;
+            }
+            if (isIdleTime()) {
                 DOC.getElementById('progressFillRot').style.width = '100%';
                 return;
             }
@@ -725,10 +1017,16 @@
     }
 
     var prevTramo = null;
+    var prevIdle = null;
 
     function checkTramoChange() {
         var id = STATE.currentTramo ? STATE.currentTramo.tramo : null;
-        if (prevTramo === null) { prevTramo = id; return; }
+        if (prevTramo === null) {
+            prevTramo = id;
+            // al arrancar en mitad de un tramo, pinta la guardia con el badge AHORA
+            if (id && cfg.guardiaOverrideEnabled && hasGuardiaScreen()) startOverride();
+            return;
+        }
         if (id !== prevTramo) {
             prevTramo = id;
             if (cfg.guardiaOverrideEnabled && hasGuardiaScreen()) {
@@ -771,6 +1069,16 @@
         var hora = now.toTimeString ? pad2(now.getHours()) + ':' + pad2(now.getMinutes()) : '';
         var fecha = DIAS_SEMANA[now.getDay()] + ' ' + now.getDate();
         DOC.getElementById('relojHora').textContent = hora + ' | ' + fecha + ' de ' + MESES[now.getMonth()];
+        updateIdleClock();
+
+        // transición idle <-> horario escolar
+        var idleNow = isIdleTime();
+        if (prevIdle === null) prevIdle = idleNow;
+        else if (idleNow !== prevIdle) {
+            prevIdle = idleNow;
+            STATE.rotStart = Date.now();
+            renderCurrent();
+        }
 
         computeSchedule();
         DOC.getElementById('progressFillTramo').style.width = (STATE.tramoProgress * 100) + '%';
@@ -874,11 +1182,24 @@
             if (formatToDDMMYYYY(STATE.ausencias[i].fecha) === ts) ausenciasHoy.push(STATE.ausencias[i]);
         }
 
-        html += '<table class="guardiaTable"><tr>' +
+        var GUARDIA_COLS = '<colgroup>' +
+            '<col style="width:9%"/>' +
+            '<col style="width:15%"/>' +
+            '<col style="width:8%"/>' +
+            '<col style="width:9%"/>' +
+            '<col style="width:38%"/>' +
+            '<col style="width:21%"/>' +
+            '</colgroup>';
+
+        // Cabecera fija (fuera del área deslizante)
+        html += '<table class="guardiaTable guardiaHead">' + GUARDIA_COLS + '<tr>' +
             '<th>Horario</th><th>Ausencias</th><th>Grupo</th><th>Aula</th><th>Tareas</th><th>Docentes de Guardia</th>' +
-            '</tr>';
+            '</tr></table>';
+
+        html += '<div id="guardiaScroll"><table class="guardiaTable guardiaBody">' + GUARDIA_COLS;
 
         var shown = 0;
+        var nextMarked = false;
         for (i = 0; i < horarios.length; i++) {
             h = horarios[i];
             var finMin = hhmmToSec(h.fin) / 60;
@@ -888,7 +1209,9 @@
             var tramoId = String(h.tramo);
             var esActual = trap === tramoId;
             var esRecreo = tramoId === 'RECREO';
-            var cls = 'class="' + (esActual ? 'current' : esRecreo ? 'recreo' : '') + '"';
+            var esNext = !esActual && !nextMarked;
+            if (esNext) nextMarked = true;
+            var cls = 'class="' + (esActual ? 'current' : esNext ? 'next' : esRecreo ? 'recreo' : '') + '"';
 
             var ausTramo = [];
             for (var a = 0; a < ausenciasHoy.length; a++) {
@@ -908,9 +1231,9 @@
             var grupoCells = '', aulaCells = '', tareaCells = '';
             for (a = 0; a < ausTramo.length; a++) {
                 var slot = ausTramo[a].horas[tramoId];
-                grupoCells += '<div><span class="g-grupo">' + esc(slot.grupo || '—') + '</span></div>';
-                aulaCells += '<div><span class="g-aula">' + esc(esRecreo ? (slot.zona || '—') : (slot.aula || '—')) + '</span></div>';
-                if (slot.tarea) tareaCells += '<div class="g-tarea" style="margin:3px 0">📝 ' + esc(slot.tarea) + '</div>';
+                grupoCells += '<div class="g-slot"><span class="g-grupo">' + esc(slot.grupo || '—') + '</span></div>';
+                aulaCells += '<div class="g-slot"><span class="g-aula">' + esc(esRecreo ? (slot.zona || '—') : (slot.aula || '—')) + '</span></div>';
+                if (slot.tarea) tareaCells += '<div class="g-tarea" style="margin:3px 0"><span class="g-tareaProf">' + esc(formatNombre(ausTramo[a].profesor)) + ':</span> 📝 ' + esc(slot.tarea) + '</div>';
             }
 
             var guardiaCells = '';
@@ -926,8 +1249,9 @@
             }
             if (!count) guardiaCells = '<span class="g-sinGuardia">Sin asignar</span>';
 
+            var badge = esActual ? '<span class="g-ahora">AHORA</span>' : (esNext ? '<span class="g-next">SIGUIENTE</span>' : '');
             html += '<tr ' + cls + '>' +
-                '<td class="g-tramo">' + esc(tramoId) + (esActual ? '<span class="g-ahora">AHORA</span>' : '') + '<span class="g-hora">' + h.inicio + ' - ' + h.fin + '</span></td>' +
+                '<td class="g-tramo">' + esc(tramoId) + badge + '<span class="g-hora">' + h.inicio + ' - ' + h.fin + '</span></td>' +
                 '<td>' + ausCells + '</td>' +
                 '<td>' + grupoCells + '</td>' +
                 '<td>' + aulaCells + '</td>' +
@@ -939,8 +1263,11 @@
         if (!shown) {
             html += '<tr><td colspan="6"><div class="ausEmpty"><b>🏁 No quedan tramos horarios pendientes para hoy.</b></div></td></tr>';
         }
-        html += '</table></div></div>';
-        swapScreen(html, null);
+        html += '</table></div></div></div>';
+        swapScreen(html, function () {
+            fitListScroll('guardiaScroll');
+            startListScroll('guardiaScroll');
+        });
     }
 
     /* -------- AUSENCIAS -------- */
@@ -968,10 +1295,7 @@
             html += '<div id="screenList">';
             for (i = 0; i < ausHoy.length && i < 12; i++) {
                 var item = ausHoy[i];
-                var nombre = item.profesor;
-                if (nombre.indexOf(',') !== -1) {
-                    nombre = nombre.split(',').map(function (p) { return trim(p); }).reverse().join(' ');
-                }
+                var nombre = formatNombre(item.profesor);
                 html += '<div class="ausCard"><div class="ausHeader"><span>❌</span>' + esc(nombre) + '</div>';
                 var tramos = [];
                 for (var t in item.horas) {
@@ -1058,9 +1382,7 @@
                     '<div class="resTramoProf">';
                 for (var prof in ausPorTramo[t]) {
                     if (ausPorTramo[t].hasOwnProperty(prof)) {
-                        var nm = prof;
-                        if (nm.indexOf(',') !== -1) nm = nm.split(',').map(function (p) { return trim(p); }).reverse().join(' ');
-                        html += '<p>• ' + esc(nm) + '</p>';
+                        html += '<p>• ' + esc(formatNombre(prof)) + '</p>';
                     }
                 }
                 html += '</div></div>';
@@ -1069,6 +1391,57 @@
         }
         html += '</div></div>';
         swapScreen(html, null);
+    }
+
+    /* -------- ACTIVIDADES (pantalla) -------- */
+    function renderActividades() {
+        var html = '<div class="screen"><div class="screen-inner">';
+        html += '<div class="scr-title">📅 Actividades Previstas</div>';
+        var todas = STATE.actividades || [];
+        var hoy0 = new Date();
+        hoy0.setHours(0, 0, 0, 0);
+        var list = [];
+        for (var n = 0; n < todas.length; n++) {
+            var fi = parseFechaDDMMYYYY(todas[n].fecha);
+            if (fi !== null && fi >= hoy0.getTime()) list.push(todas[n]);
+        }
+        if (!list.length) {
+            html += '<div class="ausEmpty"><span class="big">🗓️</span><b>No hay actividades previstas</b></div>';
+        } else {
+            html += '<div id="screenList">';
+            for (var i = 0; i < list.length && i < 12; i++) {
+                var act = list[i];
+                var p = act.fecha.split('/');
+                var dObj = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+                var esHoy = act.fecha === todayStr();
+                var etiqueta = esHoy ? 'HOY' : DIAS_ABRE[dObj.getDay()];
+                var horas = act.horaInicio ? '🕐 ' + act.horaInicio + (act.horaFin ? ' - ' + act.horaFin : '') : '';
+                var meta = '';
+                if (act.lugar) meta += '<span class="actLugar">📍 ' + esc(act.lugar) + '</span>';
+                if (horas) meta += '<span class="actHora">' + esc(horas) + '</span>';
+                if (act.alumnado) meta += '<span class="actAlu">👥 ' + esc(act.alumnado) + '</span>';
+                var profLine = '';
+                if (act.departamento) profLine += '🏫 ' + esc(act.departamento);
+                if (act.profesores.length) profLine += (profLine ? ' — ' : '') + esc(act.profesores.join(' · '));
+                html += '<div class="actCard' + (esHoy ? ' hoy' : '') + '">' +
+                    '<div class="actFecha">' +
+                    '<span class="actDiaSem">' + etiqueta + '</span>' +
+                    '<span class="actDia">' + Number(p[0]) + '</span>' +
+                    '<span class="actMes">' + MESES_ABRE[Number(p[1]) - 1] + '</span>' +
+                    '</div>' +
+                    '<div class="actInfo">' +
+                    '<div class="actTitulo">' + esc(act.titulo) + '</div>' +
+                    (meta ? '<div class="actMeta">' + meta + '</div>' : '') +
+                    (profLine ? '<div class="actProf">' + profLine + '</div>' : '') +
+                    (act.observaciones ? '<div class="actObs">📝 ' + esc(act.observaciones) + '</div>' : '') +
+                    '</div></div>';
+            }
+            html += '</div>';
+        }
+        html += '</div></div>';
+        swapScreen(html, function () {
+            if (list.length) startListScroll();
+        });
     }
 
     /* -------- GALERÍA -------- */
@@ -1085,8 +1458,8 @@
 
     var galTimer = null;
 
-    function drawGaleria() {
-        var box = DOC.getElementById('galBox');
+    function drawGaleria(boxId) {
+        var box = DOC.getElementById(boxId || 'galBox');
         if (!box) return;
         var item = STATE.galeria[STATE.galIdx % STATE.galeria.length];
         var html = '<div class="galImg fade" style="background-image:url(\'' + safeURL(item.url) + '\')"></div>';
@@ -1105,9 +1478,10 @@
     function scheduleGaleria() {
         window.setInterval(function () {
             if (!STATE.galeria.length) return;
-            if (STATE.screenList.length && STATE.screenList[STATE.screenIdx % STATE.screenList.length].type !== 'galeria') return;
+            var cur = STATE.currentScreenType;
+            if (cur !== 'galeria' && !(cur === 'idle' && cfg.mostrarGaleria && cfg.urlGaleria)) return;
             STATE.galIdx = (STATE.galIdx + 1) % STATE.galeria.length;
-            drawGaleria();
+            drawGaleria(cur === 'idle' ? 'idleGal' : 'galBox');
         }, Number(cfg.galeriaIntervalo) || 7000);
     }
 
@@ -1149,14 +1523,26 @@
 
     var rssTimer = null;
 
-    function startListScroll() {
+    /* Ajusta la altura del contenedor deslizante al hueco libre hasta el borde inferior */
+    function fitListScroll(id) {
+        var el = DOC.getElementById(id);
+        var root = DOC.getElementById('screenRoot');
+        if (!el || !root || !el.getBoundingClientRect || !root.getBoundingClientRect) return;
+        var r = el.getBoundingClientRect();
+        var rr = root.getBoundingClientRect();
+        var h = Math.floor(rr.bottom - r.top - 10);
+        if (h > 60) el.style.height = h + 'px';
+    }
+
+    function startListScroll(id) {
         if (rssTimer) window.clearInterval(rssTimer);
-        var listEl = DOC.getElementById('screenList');
+        var listEl = DOC.getElementById(id || 'screenList');
         if (!listEl) return;
         var dir = 1, paused = 0, scrollStart = null;
         rssTimer = window.setInterval(function () {
             if (!listEl) { window.clearInterval(rssTimer); return; }
             var maxScroll = Math.max(listEl.scrollHeight - listEl.clientHeight, 0);
+            if (maxScroll < 8) { listEl.scrollTop = 0; return; }
             if (paused > 0) { paused--; return; }
             if (dir === 1) {
                 listEl.scrollTop += 2;
@@ -1182,12 +1568,12 @@
                 STATE.rssError = 'No se pudo parsear el feed RSS.';
             }
             STATE.rssLoading = false;
-            if (isCurrent('rss')) renderRSS();
+            if (isCurrent('rss') && STATE.currentScreenType === 'rss') renderRSS();
         }, function (err) {
             STATE.rss = [];
             STATE.rssError = 'Error al cargar las noticias.';
             STATE.rssLoading = false;
-            if (isCurrent('rss')) renderRSS();
+            if (isCurrent('rss') && STATE.currentScreenType === 'rss') renderRSS();
         });
     }
 
@@ -1291,11 +1677,12 @@
                 STATE.weatherError = null;
             }
             STATE.weatherLoading = false;
-            if (isCurrent('tiempo')) renderTiempo();
+            if (isCurrent('tiempo') && STATE.currentScreenType === 'tiempo') renderTiempo();
+            else if (STATE.currentScreenType === 'idle') renderIdle();
         }, function () {
             STATE.weatherError = 'No se pudo cargar el tiempo.';
             STATE.weatherLoading = false;
-            if (isCurrent('tiempo')) renderTiempo();
+            if (isCurrent('tiempo') && STATE.currentScreenType === 'tiempo') renderTiempo();
         });
     }
 
@@ -1360,6 +1747,7 @@
     function openConfig() {
         DOC.getElementById('cfgUrlGuardias').value = cfg.urlGuardias || '';
         DOC.getElementById('cfgUrlAusencias').value = cfg.urlAusencias || '';
+        DOC.getElementById('cfgUrlActividades').value = cfg.urlActividades || '';
         DOC.getElementById('cfgUrlAlertas').value = cfg.urlAlertas || '';
         DOC.getElementById('cfgUrlGaleria').value = cfg.urlGaleria || '';
         DOC.getElementById('cfgRssEnabled').checked = !!cfg.rssEnabled;
@@ -1371,6 +1759,7 @@
         DOC.getElementById('cfgWeatherCity').value = cfg.weatherCity || '';
         DOC.getElementById('cfgMostrarGuardias').checked = cfg.mostrarGuardias !== false;
         DOC.getElementById('cfgMostrarAusencias').checked = cfg.mostrarAusencias !== false;
+        DOC.getElementById('cfgMostrarActividades').checked = cfg.mostrarActividades !== false;
         DOC.getElementById('cfgMostrarResumen').checked = cfg.mostrarResumen !== false;
         DOC.getElementById('cfgMostrarGaleria').checked = !!cfg.mostrarGaleria;
         DOC.getElementById('cfgGaleriaIntervalo').value = (cfg.galeriaIntervalo / 1000) || 7;
@@ -1385,6 +1774,7 @@
     function saveConfigFromForm() {
         cfg.urlGuardias = DOC.getElementById('cfgUrlGuardias').value.trim() || cfg.urlGuardias;
         cfg.urlAusencias = DOC.getElementById('cfgUrlAusencias').value.trim() || cfg.urlAusencias;
+        cfg.urlActividades = DOC.getElementById('cfgUrlActividades').value.trim() || cfg.urlActividades;
         cfg.urlAlertas = DOC.getElementById('cfgUrlAlertas').value.trim() || cfg.urlAlertas;
         cfg.urlGaleria = DOC.getElementById('cfgUrlGaleria').value.trim() || cfg.urlGaleria;
         cfg.rssEnabled = DOC.getElementById('cfgRssEnabled').checked;
@@ -1396,6 +1786,7 @@
         cfg.weatherCity = DOC.getElementById('cfgWeatherCity').value.trim() || cfg.weatherCity;
         cfg.mostrarGuardias = DOC.getElementById('cfgMostrarGuardias').checked;
         cfg.mostrarAusencias = DOC.getElementById('cfgMostrarAusencias').checked;
+        cfg.mostrarActividades = DOC.getElementById('cfgMostrarActividades').checked;
         cfg.mostrarResumen = DOC.getElementById('cfgMostrarResumen').checked;
         cfg.mostrarGaleria = DOC.getElementById('cfgMostrarGaleria').checked;
         cfg.galeriaIntervalo = (Number(DOC.getElementById('cfgGaleriaIntervalo').value) || 7) * 1000;
@@ -1437,6 +1828,21 @@
         }, interval);
     }
 
+    /* Recarga la página a las 03:00 (una vez al día) para limpiar
+       la memoria del WebKit antiguo en TVs encendidas 24/7 */
+    var RELOAD_KEY = 'kiosco_last_autoreload';
+    function scheduleNightReload() {
+        window.setInterval(function () {
+            var n = new Date();
+            if (n.getHours() !== 3) return;
+            var last = null;
+            try { last = localStorage.getItem(RELOAD_KEY); } catch (e) { last = null; }
+            if (last === todayStr()) return;
+            try { localStorage.setItem(RELOAD_KEY, todayStr()); } catch (e) { /* sin espacio */ }
+            window.location.reload();
+        }, 30000);
+    }
+
     /* ==========================================================
        12. ARRANQUE
        ========================================================== */
@@ -1462,12 +1868,14 @@
         scheduleMarquee();
         scheduleAlertRotation();
         scheduleGaleria();
+        scheduleNightReload();
         // Refresco de pantallas sensibles al tiempo
         window.setInterval(function () {
+            if (isIdleTime()) return;
             var list = STATE.screenList;
             if (!list.length || DOC.getElementById('pinModal').style.display !== 'none') return;
             var t = list[STATE.screenIdx % list.length].type;
-            if (t === 'guardia' || t === 'ausencias' || t === 'resumen') renderCurrent();
+            if (t === 'guardia' || t === 'ausencias' || t === 'actividades' || t === 'resumen') renderCurrent();
         }, 10000);
 
         dataTimer = window.setInterval(function () {
