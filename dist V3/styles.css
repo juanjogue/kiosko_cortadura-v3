@@ -130,7 +130,7 @@ body {
     z-index: 3000;
     text-align: center; padding-top: 120px;
 }
-#configModal { padding: 16px; }
+#configModal { padding: 16px; overflow-y: auto; }
 .modalBox {
     display: inline-block; vertical-align: top;
     background: #1e293b;
@@ -138,7 +138,7 @@ body {
     padding: 32px 36px; text-align: center;
     max-width: 620px;
 }
-.configBox { max-width: 1400px; width: 100%; height: 100%; overflow-y: auto; padding: 22px 30px; }
+.configBox { max-width: 1400px; width: 100%; margin-bottom: 40px; padding: 22px 30px; }
 .configBox .modalTitle { font-size: 54px; }
 .configBox .modalSubtitle { font-size: 32px; }
 .configBox .modalButtons { text-align: center; }

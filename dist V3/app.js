@@ -273,6 +273,7 @@
     }
 
     var PROXIES = [
+        'proxy.php?url=',
         'https://api.allorigins.win/raw?url=',
         'https://corsproxy.io/?'
     ];
