@@ -33,7 +33,7 @@
         weatherLon: '-6.28',
         weatherCity: 'Cádiz',
         urlGuardias: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTys484unlw9HouZLvfaT1HeV9zdn24jGzcT-F7__EMQG-0tuu1ylXHg6MpklCkwQDojfed4B8aKDot/pub?output=csv',
-        urlAusencias: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vShyK5np1YxNiTfE36yvmR05zFO4ji0-_YW-6UMmKJ3AopDDsZW5Hz1lmzcNfyadtt51-gs5aNx4XER/pub?gid=2111711524&single=true&output=csv',
+        urlAusencias: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vShyK5np1YxNiTfE36yvmR05zFO4ji0-_YW-6UMmKJ3AopDDsZW5Hz1lmzcNfyadtt51-gs5aNx4XER/pub?gid=1604837414&single=true&output=csv',
         urlActividades: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU6-MIrAOXPRcRArrkMECyDdtxBFmezookCWJtjBJ9_eQOpZ_An7H3ZiJqr1_-k0L-Tp3cHvyve5lk/pub?output=csv',
         urlAlertas: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTv9D9yD--6U2rS7LcPy8lwc9O0THHUU96UPju2y4US4bW5OXAe-70sPcV95gW0XfdEE72D3WnExMVr/pub?output=csv',
         horarios: [
@@ -168,6 +168,19 @@
             n = n.split(',').map(function (p) { return trim(p); }).reverse().join(' ');
         }
         return n;
+    }
+
+    /* Clave de comparación de nombres: minúsculas, sin acentos, tokens ordenados.
+       Ignora discrepancias de orden ("García López, Ana" == "Ana García Lopez"). */
+    function normNombreKey(nom) {
+        var parts = trim(String(nom)).toLowerCase().replace(/[\u0300-\u036f]/g, '').split(/[,\s]+/);
+        var out = [];
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i]) out.push(parts[i]);
+        }
+        if (!out.length) return '';
+        out.sort();
+        return out.join(' ');
     }
 
     function formatToDDMMYYYY(dateValue) {
@@ -341,6 +354,11 @@
     }
 
     function procesarAusencias(objs) {
+        var wide = false;
+        for (var w = 0; w < objs.length; w++) {
+            if (objs[w] && findKey(objs[w], ['docente'])) { wide = true; break; }
+        }
+        if (wide) return procesarAusenciasWide(objs);
         var map = {};
         for (var i = 0; i < objs.length; i++) {
             var pKey = findKey(objs[i], ['profesor']);
@@ -372,6 +390,53 @@
         }
         var out = [];
         for (var k in map) { if (map.hasOwnProperty(k)) out.push(map[k]); }
+        return out;
+    }
+
+    /* Formato ancho de la hoja de ausencias (formulario):
+       Docente, Fecha de ausencia, 1ª HORA GRUPO/AULA/TAREA ... 6ª HORA,
+       RECREO, ZONA RECREO, OBSERVACION PARA TENER EN CUENTA EN EL RECREO */
+    function procesarAusenciasWide(objs) {
+        var ORD = ['1', '2', '3', '4', '5', '6'];
+        var map = {};
+        var i, k;
+        for (i = 0; i < objs.length; i++) {
+            var o = objs[i];
+            if (!o) continue;
+            var dKey = findKey(o, ['docente']);
+            var fKey = findKey(o, ['fecha de ausencia', 'fecha']);
+            var profesor = dKey ? trim(o[dKey]) : '';
+            var fecha = fKey ? formatToDDMMYYYY(o[fKey]) : '';
+            if (!profesor || !fecha) continue;
+            var horas = {};
+            for (k in o) {
+                if (!o.hasOwnProperty(k)) continue;
+                var m = /^(\d)\s*\u00aa\s*HORA\s+(GRUPO|AULA|TAREA)$/i.exec(trim(k));
+                if (!m) continue;
+                var tramo = m[1];
+                var campo = m[2].toLowerCase();
+                var val = trim(o[k]);
+                if (!val) continue;
+                if (!horas[tramo]) horas[tramo] = { grupo: '', aula: '', tarea: '' };
+                horas[tramo][campo] = val;
+            }
+            var recG = '', recZ = '', recT = '';
+            for (k in o) {
+                if (!o.hasOwnProperty(k)) continue;
+                var lk = trim(k).toLowerCase();
+                if (lk === 'recreo') recG = trim(o[k]);
+                else if (lk.indexOf('zona recreo') !== -1) recZ = trim(o[k]);
+                else if (lk.indexOf('observacion') !== -1 && lk.indexOf('recreo') !== -1) recT = trim(o[k]);
+            }
+            if (recG || recZ || recT) horas['RECREO'] = { grupo: recG, zona: recZ, tarea: recT };
+            var key = profesor + '_' + fecha;
+            if (!map[key]) map[key] = { profesor: profesor, fecha: fecha, horas: {} };
+            for (var h in horas) {
+                if (horas.hasOwnProperty(h)) map[key].horas[h] = horas[h];
+            }
+        }
+        var out = [];
+        for (var kk in map) { if (map.hasOwnProperty(kk)) out.push(map[kk]); }
         return out;
     }
 
@@ -1023,8 +1088,8 @@
         var id = STATE.currentTramo ? STATE.currentTramo.tramo : null;
         if (prevTramo === null) {
             prevTramo = id;
-            // al arrancar en mitad de un tramo, pinta la guardia con el badge AHORA
-            if (id && cfg.guardiaOverrideEnabled && hasGuardiaScreen()) startOverride();
+            // arranque en modo normal (rotación); el override solo se activa al
+            // cambiar de tramo en vivo, no al entrar a la página
             return;
         }
         if (id !== prevTramo) {
@@ -1233,7 +1298,7 @@
                 var slot = ausTramo[a].horas[tramoId];
                 grupoCells += '<div class="g-slot"><span class="g-grupo">' + esc(slot.grupo || '—') + '</span></div>';
                 aulaCells += '<div class="g-slot"><span class="g-aula">' + esc(esRecreo ? (slot.zona || '—') : (slot.aula || '—')) + '</span></div>';
-                if (slot.tarea) tareaCells += '<div class="g-tarea" style="margin:3px 0"><span class="g-tareaProf">' + esc(formatNombre(ausTramo[a].profesor)) + ':</span> 📝 ' + esc(slot.tarea) + '</div>';
+                if (slot.tarea) tareaCells += '<div class="g-tarea" style="margin:3px 0">📝 ' + esc(slot.tarea) + '</div>';
             }
 
             var guardiaCells = '';
@@ -1361,10 +1426,28 @@
         }
         var totalAus = 0; for (var ap in setAus) { if (setAus.hasOwnProperty(ap)) totalAus++; }
 
+        // Profesores ausentes hoy que además están de guardia (cruce por nombre)
+        var guardiaSet = {};
+        for (var tr in guardiasDeHoy) {
+            if (!guardiasDeHoy.hasOwnProperty(tr)) continue;
+            var arrG = guardiasDeHoy[tr];
+            for (var gg = 0; gg < arrG.length; gg++) {
+                for (var gpp = 0; gpp < arrG[gg].profesores.length; gpp++) {
+                    var nk = normNombreKey(arrG[gg].profesores[gpp]);
+                    if (nk) guardiaSet[nk] = true;
+                }
+            }
+        }
+        var ausConGuardia = 0;
+        for (var ap2 in setAus) {
+            if (setAus.hasOwnProperty(ap2) && guardiaSet[normNombreKey(ap2)]) ausConGuardia++;
+        }
+
         var html = '<div class="screen"><div class="screen-inner">';
         html += '<div class="scr-title">📊 Resumen del Día</div>';
         html += '<div class="resCards">' +
             '<div class="resCard" style="border-left-color:#f87171"><span class="ic">❌</span><span class="val" style="color:#f87171">' + totalAus + '</span><span class="lb">Docentes Ausentes</span></div>' +
+            '<div class="resCard" style="border-left-color:#f59e0b"><span class="ic">🛡️</span><span class="val" style="color:#f59e0b">' + ausConGuardia + '</span><span class="lb">Ausentes con Guardia</span></div>' +
             '<div class="resCard" style="border-left-color:#34d399"><span class="ic">👨‍🏫</span><span class="val" style="color:#34d399">' + totalGuardias + '</span><span class="lb">Docentes de Guardia</span></div>' +
             '</div>';
 
