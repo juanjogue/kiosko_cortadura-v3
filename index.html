@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <title>Kiosco TV</title>
+    <link rel="icon" href="assets/logo.png" type="image/png"/>
+    <link rel="stylesheet" href="styles.css?v7"/>
+</head>
+<body>
+    <div id="app">
+
+        <!-- Barra de progreso de rotación -->
+        <div id="progressRot"><div id="progressFillRot"></div></div>
+
+        <!-- Barra de progreso del tramo actual -->
+        <div id="progressTramo"><div id="progressFillTramo"></div></div>
+
+        <!-- Cabecera -->
+        <div id="header">
+            <img id="logo" src="assets/logo.png" alt="Logo centro"/>
+            <div id="headerRight">
+                <div id="statusIndicator">
+                    <span id="statusDot"></span>
+                    <span id="statusText">Sin datos</span>
+                </div>
+                <div id="proximoTimbre">
+                    <span id="timbreLabel">Próximo</span>
+                    <span id="timbreValue">--</span>
+                </div>
+                <div id="reloj">
+                    <span id="relojHora">--:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zona de pantallas -->
+        <div id="screenRoot">
+            <div id="screenViewport"></div>
+        </div>
+
+        <!-- Tira de alertas -->
+        <div id="alertBar">
+            <div id="alertIcon">📢</div>
+            <div id="alertMarquee"><div id="alertText"></div></div>
+        </div>
+
+        <!-- Botón de configuración -->
+        <div id="configBtn" onfocus="this.style.transform='scale(1.2)';this.style.background='#3b82f6'" onblur="this.style.transform='';this.style.background=''">⚙️</div>
+
+        <!-- Modal PIN -->
+        <div id="pinModal" style="display:none">
+            <div class="modalBox">
+                <div class="modalTitle">Acceso Administrador</div>
+                <div class="modalSubtitle">Introduce el PIN para configurar</div>
+                <input id="pinInput" type="password" value="" maxlength="8" class="pinInput"/>
+                <div id="pinError" class="pinError" style="display:none">PIN incorrecto</div>
+                <div class="modalButtons">
+                    <button id="pinCancel" class="btn cancel">Cancelar</button>
+                    <button id="pinOk" class="btn ok">Acceder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Configuración -->
+        <div id="configModal" style="display:none">
+            <div class="modalBox configBox">
+                <div class="modalTitle">Configuración</div>
+
+                <div class="cfgSection">📋 Fuentes de datos (Google Sheets CSV)</div>
+                <table class="cfgTable">
+                    <tr><td>URL Guardias</td><td><input id="cfgUrlGuardias" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>URL Ausencias</td><td><input id="cfgUrlAusencias" type="text" class="cfgInput"/></td></tr>
+                <tr><td>URL Actividades</td><td><input id="cfgUrlActividades" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>URL Alertas</td><td><input id="cfgUrlAlertas" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>URL Galería</td><td><input id="cfgUrlGaleria" type="text" class="cfgInput"/></td></tr>
+                </table>
+
+                <div class="cfgSection">📰 RSS</div>
+                <table class="cfgTable">
+                    <tr><td>Habilitar RSS</td><td><input id="cfgRssEnabled" type="checkbox"/></td></tr>
+                    <tr><td>URL RSS</td><td><input id="cfgUrlRss" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Título RSS</td><td><input id="cfgTituloRss" type="text" class="cfgInput"/></td></tr>
+                </table>
+
+                <div class="cfgSection">🌤️ Tiempo</div>
+                <table class="cfgTable">
+                    <tr><td>Habilitar Tiempo</td><td><input id="cfgWeatherEnabled" type="checkbox"/></td></tr>
+                    <tr><td>Latitud</td><td><input id="cfgWeatherLat" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Longitud</td><td><input id="cfgWeatherLon" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Ciudad</td><td><input id="cfgWeatherCity" type="text" class="cfgInput"/></td></tr>
+                </table>
+
+                <div class="cfgSection">🖥️ Pantallas</div>
+                <table class="cfgTable">
+                    <tr><td>Mostrar Guardias</td><td><input id="cfgMostrarGuardias" type="checkbox"/></td></tr>
+                    <tr><td>Mostrar Ausencias</td><td><input id="cfgMostrarAusencias" type="checkbox"/></td></tr>
+                <tr><td>Mostrar Actividades</td><td><input id="cfgMostrarActividades" type="checkbox"/></td></tr>
+                    <tr><td>Mostrar Resumen</td><td><input id="cfgMostrarResumen" type="checkbox"/></td></tr>
+                    <tr><td>Mostrar Galería</td><td><input id="cfgMostrarGaleria" type="checkbox"/></td></tr>
+                    <tr><td>Intervalo galería (s)</td><td><input id="cfgGaleriaIntervalo" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Rotación (s)</td><td><input id="cfgRotacion" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Actualizar datos (s)</td><td><input id="cfgActualizacion" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>Override de Guardia</td><td><input id="cfgGuardiaOverride" type="checkbox"/></td></tr>
+                    <tr><td>Duración override (s)</td><td><input id="cfgOverrideDur" type="text" class="cfgInput"/></td></tr>
+                    <tr><td>PIN admin</td><td><input id="cfgAdminPin" type="text" class="cfgInput" maxlength="8" placeholder="Vacío = mantener"/></td></tr>
+                </table>
+
+                <div class="modalButtons">
+                    <button id="cfgSave" class="btn ok">Guardar</button>
+                    <button id="cfgClose" class="btn cancel">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="app.js?v8"></script>
+</body>
+</html>
