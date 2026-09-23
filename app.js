@@ -154,9 +154,24 @@
 
     var DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
+    /* Elimina tildes de vocales PReCOMPUESTAS (é, í, ó, Ú, ñ...) además de los
+       signos combinables U+0300-U+036f. Solo borrar estos últimos no basta:
+       'Miércoles' usa la é precompuesta (U+00E9) y la hoja guarda 'miercoles'. */
+    function quitarAcentos(s) {
+        s = trim(s).toLowerCase();
+        s = s.replace(/[\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5]/g, 'a');
+        s = s.replace(/[\u00e8\u00e9\u00ea\u00eb]/g, 'e');
+        s = s.replace(/[\u00ec\u00ed\u00ee\u00ef]/g, 'i');
+        s = s.replace(/[\u00f2\u00f3\u00f4\u00f5\u00f6]/g, 'o');
+        s = s.replace(/[\u00f9\u00fa\u00fb\u00fc]/g, 'u');
+        s = s.replace(/[\u00f1]/g, 'n');
+        s = s.replace(/[\u00e7]/g, 'c');
+        return s;
+    }
+
     function normalizeDayName(diaStr) {
         if (!diaStr) return '';
-        var norm = trim(diaStr).toLowerCase();
+        var norm = quitarAcentos(diaStr);
         norm = norm.replace(/[\u0300-\u036f]/g, '');
         return norm.charAt(0).toUpperCase() + norm.slice(1);
     }
@@ -173,7 +188,7 @@
     /* Clave de comparación de nombres: minúsculas, sin acentos, tokens ordenados.
        Ignora discrepancias de orden ("García López, Ana" == "Ana García Lopez"). */
     function normNombreKey(nom) {
-        var parts = trim(String(nom)).toLowerCase().replace(/[\u0300-\u036f]/g, '').split(/[,\s]+/);
+        var parts = quitarAcentos(String(nom)).split(/[,\s]+/);
         var out = [];
         for (var i = 0; i < parts.length; i++) {
             if (parts[i]) out.push(parts[i]);
@@ -788,7 +803,7 @@
         var i;
         for (i = 0; i < STATE.alertas.length; i++) {
             var a = STATE.alertas[i];
-            var activo = trim(a.activo).replace(/[\u0300-\u036f]/g, '').toUpperCase();
+            var activo = quitarAcentos(a.activo).toUpperCase();
             var esActivo = activo === 'SI' || activo === 'SÍ' || activo === 'TRUE' || activo === 'YES' || activo === '1' || activo === 'VERDADERO';
             if (!esActivo) continue;
             if (!a.fechaInicio) continue;
