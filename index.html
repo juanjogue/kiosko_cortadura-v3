@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
     <title>Kiosco TV</title>
     <link rel="icon" href="assets/logo.png" type="image/png"/>
-    <link rel="stylesheet" href="styles.css?v7"/>
+    <link rel="stylesheet" href="styles.css?v8"/>
 </head>
 <body>
     <div id="app">
@@ -107,6 +107,11 @@
                     <tr><td>PIN admin</td><td><input id="cfgAdminPin" type="text" class="cfgInput" maxlength="8" placeholder="Vacío = mantener"/></td></tr>
                 </table>
 
+                <div class="cfgSection">🎨 Apariencia</div>
+                <table class="cfgTable">
+                    <tr><td>Tema oscuro</td><td><input id="cfgDarkMode" type="checkbox"/></td></tr>
+                </table>
+
                 <div class="modalButtons">
                     <button id="cfgSave" class="btn ok">Guardar</button>
                     <button id="cfgClose" class="btn cancel">Cerrar</button>
@@ -115,6 +120,6 @@
         </div>
 
     </div>
-    <script src="app.js?v11"></script>
+    <script src="app.js?v12"></script>
 </body>
 </html>

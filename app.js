@@ -1889,6 +1889,7 @@
         DOC.getElementById('cfgGuardiaOverride').checked = cfg.guardiaOverrideEnabled !== false;
         DOC.getElementById('cfgOverrideDur').value = cfg.guardiaOverrideDuration || 200;
         DOC.getElementById('cfgAdminPin').value = ''; // no revelar el PIN actual
+        DOC.getElementById('cfgDarkMode').checked = cfg.darkMode !== false;
         DOC.getElementById('configModal').style.display = 'block';
     }
 
@@ -1948,6 +1949,7 @@ function saveConfigFromForm() {
         cfg.guardiaOverrideEnabled = DOC.getElementById('cfgGuardiaOverride').checked;
         cfg.guardiaOverrideDuration = Number(fromInput('cfgOverrideDur')) || DEFAULT_CONFIG.guardiaOverrideDuration;
         cfg.adminPin = fromInput('cfgAdminPin') || cfg.adminPin;
+        cfg.darkMode = DOC.getElementById('cfgDarkMode').checked;
 
         saveConfig();
         DOC.getElementById('configModal').style.display = 'none';
@@ -1966,6 +1968,7 @@ function saveConfigFromForm() {
         loadData();
         if (cfg.rssEnabled) fetchRSS();
         if (cfg.weatherEnabled) fetchWeather();
+        reflectDarkMode();
         renderCurrent();
         computeAlertasActivas();
     }
@@ -2045,8 +2048,14 @@ function saveConfigFromForm() {
     }
 
     function reflectDarkMode() {
+        var cls = DOC.body.className || '';
+        var hasLight = cls.indexOf('light') !== -1;
         if (cfg.darkMode === false) {
-            DOC.body.style.background = '#f8fafc';
+            DOC.body.style.background = '#f1f5f9';
+            if (!hasLight) DOC.body.className = (cls + ' light').replace(/^\s+|\s+$/g, '');
+        } else {
+            DOC.body.style.background = '';
+            if (hasLight) DOC.body.className = cls.replace(/light/g, '').replace(/\s{2,}/g, ' ').replace(/^\s+|\s+$/g, '');
         }
     }
 
