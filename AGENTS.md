@@ -3,7 +3,7 @@
 Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. Orphan branch `distV3` served by GitHub Pages from the root. No build, no tests, no lint: deploy = push to `distV3`, verification is manual in a browser.
 
 ## Reglas duras
-- Trabaja SOLO en `distV3`, tocando únicamente los archivos de la raíz: `app.js`, `index.html`, `styles.css`, `proxy.php`, `GUIA_TV_ENGEL.md`, `assets/`. **Nunca tocar `master`** (app Expo/React Native completa; contiene la carpeta `dist V3/` obsoleta).
+- Trabaja SOLO en `distV3`, tocando únicamente los archivos de la raíz: `app.js`, `index.html`, `styles.css`, `GUIA_TV_ENGEL.md`, `assets/`. **Nunca tocar `master`** (app Expo/React Native completa; contiene la carpeta `dist V3/` obsoleta).
 - `app.js` es **ES5** (prohibido `let`/`const`/flechas/template literals/`fetch`/`Promise.allSettled`) y el CSS debe valer para el WebKit viejo de las TV Linux (Engel). Método de carga: `XMLHttpRequest` (ver `loadURL`, app.js:311).
 - Tras cambiar `app.js` o `styles.css`, incrementa su cache-buster en `index.html` (`app.js?v9`, `styles.css?v7`) y recarga la TV con Ctrl+F5. Sin bump, la TV sigue con el código viejo.
 - Los parámetros de URL se re-aplican en cada carga y tienen prioridad sobre la config guardada (`applyURLConfig`, app.js:88). Deben ir en la URL raíz (`https://…/?demo=1`), jamás en `…/index.html?demo=1` (el servidor redirige y pierde la query).
@@ -14,8 +14,7 @@ Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. Orpha
 - La hoja de Google guarda `miercoles` sin tilde pero el código usa `Miércoles`. Comparar días/nombres SIEMPRE pasando por `quitarAcentos()` (convierte vocales PRECOMPUESTAS U+00E9, no basta borrar marcas combinables U+0300–U+036f), vía `normalizeDayName` / `normNombreKey` (app.js:160-199). Síntoma del bug: "no aparecen los docentes de guardia".
 - Fuentes: CSV de Google Sheets (`/pub?output=csv`; para ausencias, `?gid=1604837414&single=true&output=csv`). `convertSheetUrl` (app.js:278) añade `_cb=timestamp` para saltar la caché de Google (~5 min).
 - `esURLFuente()` (app.js:293) decide qué URLs se aceptan: solo Sheets/Drive/CSV/imágenes con `http(s)://`.
-- CORS: primero descarga directa, respaldo `proxy.php?url=` del mismo host (`PROXIES`, app.js:307). Los proxies públicos (allorigins, corsproxy.io…) están muertos y **se retiraron a propósito**; no volver a añadirlos.
-- `proxy.php`: whitelist de dominios (docs.google.com, drive.google.com, weserv, open-meteo, rss2json); responde 204 a OPTIONS.
+- CORS: **no hay proxy** — `proxy.php` se eliminó (no se ejecuta en GitHub Pages y todas las fuentes envían `Access-Control-Allow-Origin: *`). `PROXIES` está vacío y `loadURL` descarga directo; no volver a añadir proxies.
 
 ## Persistencia y operativa
 - localStorage: `kiosco_config`, `kiosco_data_cache` (últimos datos; sin internet se muestra caché), `kiosco_last_autoreload`.

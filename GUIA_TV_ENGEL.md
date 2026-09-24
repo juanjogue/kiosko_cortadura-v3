@@ -191,7 +191,7 @@ Para que el kiosco se quede fijo y no se apague:
 | Problema                          | Causa probable                                          | Solución                                                                 |
 |-----------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------|
 | Pantalla en negro al abrir        | Transición de pantalla o caché vieja                    | Recarga con el mando (recargar página); si persiste, limpia caché del navegador |
-| "Sin datos" en rojo              | No se pudo descargar Google Sheets (CORS/red)           | Revisa conexión TV; el kiosco reintenta automáticamente y usa caché; si la descarga directa falla usa `proxy.php` del mismo host |
+| "Sin datos" en rojo              | No se pudo descargar Google Sheets (CORS/red)           | Revisa conexión TV; el kiosco reintenta automáticamente y usa caché. Las fuentes envían CORS (`Access-Control-Allow-Origin: *`) y se descargan en directo, sin proxy |
 | No cambian las pantallas          | Solo hay 1 pantalla activa                              | Activa más pantallas en ⚙️ (Guardias, Ausencias, Resumen...)               |
 | Las URLs no se guardan            | Cambios hechos con la URL `?admin=…` vs guardados       | Guarda siempre desde ⚙️ → PIN → Guardar                                   |
 | El reloj / timbre no coincide     | Franjas horarias distintas a tu centro por URL          | Edita ⚙️ → PIN (o `centro`/horarios por URL no disponibles: cambia en `app.js`) |
@@ -204,10 +204,11 @@ Para que el kiosco se quede fijo y no se apague:
 - **Formato de datos**: Google Sheets exportado como CSV (URL `/pub?output=csv`).
 - **Caché**: los datos se guardan en `localStorage` de la TV, de modo que si no
   hay internet el kiosco muestra la última información cargada.
-- **Proxies CORS**: por defecto solo se usa `proxy.php` (mismo host) como
-  respaldo sin CORS si la TV bloquea la descarga directa. Los proxies públicos
-  (`allorigins.win`, `corsproxy.io`, `api.codetabs.com`, …) están muertos en
-  2026 y se retiraron; ya no se añaden esperas en cada fallo.
+- **CORS**: todas las fuentes (Google Sheets `pub?output=csv`, open-meteo,
+  rss2json) envían `Access-Control-Allow-Origin: *` y se descargan en directo.
+  No hay proxy: `proxy.php` no se ejecuta en GitHub Pages y los proxies
+  públicos (`allorigins.win`, `corsproxy.io`, `api.codetabs.com`, …) están
+  muertos en 2026 y se retiraron, solo añadían esperas en cada fallo.
 - **Recarga automática nocturna**: a las **03:00** el kiosco se recarga solo
   (una vez al día) para limpiar la memoria del navegador antiguo en TVs
   encendidas 24/7.

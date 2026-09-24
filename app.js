@@ -224,7 +224,7 @@
     }
 
     /* ==========================================================
-       3. PARSER CSV + CARGA CON PROXY CORS
+       3. PARSER CSV + CARGA DE DATOS
        ========================================================== */
     function parseCSVRows(text) {
         if (!text) return [];
@@ -300,13 +300,11 @@
             /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(u);
     }
 
-    /* Proxy del MISMO host (proxy.php): única línea de respaldo.
-       Los proxies públicos (allorigins.win, corsproxy.io, codetabs, cors.lol)
-       están muertos/apagados en 2026 (ver docs/sesion-2026-09-22-*.md) y solo
-       añadían esperas de 20s por candidato en cada fallo de descarga. */
-    var PROXIES = [
-        'proxy.php?url='
-    ];
+    /* Las fuentes de datos (Google Sheets pub CSV, open-meteo, rss2json)
+       envían Access-Control-Allow-Origin: * y se descargan DIRECTO.
+       No hay proxy: el antiguo proxy.php no se ejecuta en GitHub Pages y
+       los proxies públicos estaban muertos, solo añadían esperas. */
+    var PROXIES = [];
 
     function loadURL(url, onok, onfail) {
         var candidates = [url];
