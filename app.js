@@ -1311,6 +1311,8 @@
             shown++;
             var tramoId = String(h.tramo);
             var esActual = trap === tramoId;
+            // Modo Guardia: quedarse SOLO en el tramo actual durante el override
+            if (STATE.isGuardiaOverride && trap && !esActual) continue;
             var esRecreo = tramoId === 'RECREO';
             var esNext = !esActual && !nextMarked;
             if (esNext) nextMarked = true;
