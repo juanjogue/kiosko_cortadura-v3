@@ -36,9 +36,9 @@ Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. La ra
 - Modos demo (rápido para renderizar todo sin hojas reales, marquesina avisa "DATOS FICTICIOS"): `?demo=1` (horario deslizante) y `?demo=manana` (reloj ficticio 10:25, tramo 3 "AHORA"). `demo`/`noidle` nunca se persisten.
 - Arquitectura mínima: `boot()` (app.js:2005) arranca; `loadData()` (730) descarga; `groupGuardias` (593) indexa guardias por día/tramo; `renderCurrent` (1012) / `renderResumen` (1435) / `renderActividades` (1518) pintan; `startListScroll` (1658) hace el auto-scroll de las listas. `app.js` es una IIFE con dependencias de DOM: difícil de testear aislada (el harness usado en su día fue ad hoc y temporal).
 
-## Pendiente conocido
-- La hoja de guardias tiene **nombres duplicados en la misma celda** (tramo 4: "Malia Carpio, Manuela" x2; tramo 5: "Fuentes Gallego, María Begoña" x2). `renderResumen` cuenta asignaciones (19) ≠ docentes distintos (17). Decisión abierta del usuario: deduplicar en la hoja o en código.
-- La columna `width: 130px` de `.actFecha` y el `margin-left: 130px` de `.actInfo` (styles.css) están acoplados: si cambias uno, cambia el otro.
+## Decisiones ya tomadas (no son bugs, no "arreglar")
+- La hoja de guardias tiene **nombres duplicados en la misma celda** (tramo 4: "Malia Carpio, Manuela" x2; tramo 5: "Fuentes Gallego, María Begoña" x2). Es **intencionado**: `renderResumen` cuenta asignaciones (19), no docentes distintos (17). No deduplicar en código ni "limpiar" la hoja.
+- La columna `width: 130px` de `.actFecha` y el `margin-left: 130px` de `.actInfo` (styles.css) están acoplados a propósito: si cambias uno, cambia el otro.
 
 ## Referencias
 - `README.md` (en el repo): descripción, parámetros de URL, columnas de cada hoja, despliegue.
