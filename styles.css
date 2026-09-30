@@ -30,7 +30,9 @@ body {
     padding: 0 20px;
     z-index: 50;
 }
-#logo { height: 60px; width: auto; float: left; margin-top: 4px; }
+/* Logo mas alto que la banda (70px): invade el padding de 16px de .screen,
+   sin mover ni redimensionar ningun otro elemento (header fijo, screenRoot en 82px). */
+#logo { height: 80px; width: auto; float: left; margin-top: 0; }
 
 #headerRight { float: right; text-align: right; }
 
@@ -369,24 +371,24 @@ td.g-guardia { text-align: left; }
 .actCard.hoy { border-color: #f59e0b; background: rgba(245,158,11,0.08); }
 .actFecha {
     float: left; width: 130px; text-align: center;
-    background: rgba(59,130,246,0.25); padding: 16px 0;
+    background: rgba(59,130,246,0.25); padding: 18px 0;
 }
 .actCard.hoy .actFecha { background: #f59e0b; }
-.actDiaSem { display: block; font-size: 22px; font-weight: bold; color: #cbd5e1; letter-spacing: 2px; }
+.actDiaSem { display: block; font-size: 26px; font-weight: bold; color: #cbd5e1; letter-spacing: 2px; }
 .actCard.hoy .actDiaSem { color: rgba(15,23,42,0.75); }
-.actDia { display: block; font-size: 68px; font-weight: bold; color: #fff; line-height: 1.1; }
+.actDia { display: block; font-size: 80px; font-weight: bold; color: #fff; line-height: 1.1; }
 .actCard.hoy .actDia { color: #0f172a; }
-.actMes { display: block; font-size: 22px; font-weight: bold; color: #cbd5e1; letter-spacing: 2px; }
+.actMes { display: block; font-size: 26px; font-weight: bold; color: #cbd5e1; letter-spacing: 2px; }
 .actCard.hoy .actMes { color: rgba(15,23,42,0.75); }
-.actInfo { margin-left: 130px; padding: 18px 22px; }
-.actTitulo { font-size: 37px; font-weight: bold; color: #fff; }
-.actMeta { margin-top: 8px; }
-.actLugar, .actHora, .actAlu { display: inline-block; margin-right: 18px; font-size: 29px; font-weight: 600; }
+.actInfo { margin-left: 130px; padding: 20px 24px; }
+.actTitulo { font-size: 44px; font-weight: bold; color: #fff; }
+.actMeta { margin-top: 10px; }
+.actLugar, .actHora, .actAlu { display: inline-block; margin-right: 20px; font-size: 34px; font-weight: 600; }
 .actLugar { color: #7dd3fc; }
 .actHora { color: #fbbf24; }
 .actAlu { color: #c4b5fd; }
-.actProf { color: #94a3b8; font-size: 25px; margin-top: 8px; }
-.actObs { color: #94a3b8; font-size: 24px; margin-top: 8px; font-style: italic; }
+.actProf { color: #94a3b8; font-size: 30px; margin-top: 10px; }
+.actObs { color: #94a3b8; font-size: 28px; margin-top: 10px; font-style: italic; }
 
 /* ============================================================
    PANTALLA IDLE (fuera de horario escolar)
