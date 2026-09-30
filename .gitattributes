@@ -1,0 +1,12 @@
+# Fijar LF en el working tree tambien en Windows (core.autocrlf=true
+# provocaba el aviso "LF will be replaced by CRLF" al anadir archivos).
+# Para un sitio web estatico lo correcto es LF; el navegador y la TV
+# Engel dan igual, pero los diffs quedan limpios entre Windows y Linux.
+* text=auto eol=lf
+
+# Los binarios no se tocan
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

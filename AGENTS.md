@@ -1,31 +1,39 @@
 # AGENTS.md — Kiosco Cortadura (dist V3)
 
-Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. Orphan branch `distV3` served by GitHub Pages from the root. No build, no tests, no lint: deploy = push to `distV3`, verification is manual in a browser.
+Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. La rama `distV3` (orphan) es la que sirve GitHub Pages desde la raíz. No build, no tests, no lint: deploy = push a `distV3`, la verificación es manual en un navegador.
 
 ## Reglas duras
-- Trabaja SOLO en `distV3`, tocando únicamente los archivos de la raíz: `app.js`, `index.html`, `styles.css`, `GUIA_TV_ENGEL.md`, `assets/`. **Nunca tocar `master`** (app Expo/React Native completa; contiene la carpeta `dist V3/` obsoleta).
-- `app.js` es **ES5** (prohibido `let`/`const`/flechas/template literals/`fetch`/`Promise.allSettled`) y el CSS debe valer para el WebKit viejo de las TV Linux (Engel). Método de carga: `XMLHttpRequest` (ver `loadURL`, app.js:311).
-- Tras cambiar `app.js` o `styles.css`, incrementa su cache-buster en `index.html` (`app.js?v9`, `styles.css?v7`) y recarga la TV con Ctrl+F5. Sin bump, la TV sigue con el código viejo.
+- **Esta carpeta es el trabajo**: `E:\KioscoApp-TVandroid_v2\dist V3` es un clone de una sola rama (`--single-branch --branch distV3`) y su raíz es la raíz de la rama. Toca solo los archivos de aquí: `app.js`, `index.html`, `styles.css`, `GUIA_TV_ENGEL.md`, `README.md`, `AGENTS.md`, `.gitattributes`, `assets/`.
+- **No toques la carpeta padre** `E:\KioscoApp-TVandroid_v2`: es otro checkout más antiguo (con cambios sin commitear en `app.js`/`index.html`/`styles.css`/`GUIA_TV_ENGEL.md` y carpetas `dist V1`…`dist V3`). Y **nunca `master`** (app Expo/React Native completa, obsoleta para este kiosco).
+- `app.js` es **ES5** (prohibido `let`/`const`/flechas/template literals/`fetch`/`Promise.allSettled`) y el CSS debe valer para el WebKit viejo de las TV Linux (Engel): sin Grid, sin flex `gap`, sin `backdrop-filter`. Método de carga: `XMLHttpRequest` (`loadURL`, app.js:309).
+- Tras cambiar `app.js` o `styles.css`, incrementa su cache-buster en `index.html` (`app.js?v12`, `styles.css?v10`) y recarga con Ctrl+F5. Sin bump, la TV sigue con el código viejo.
 - Los parámetros de URL se re-aplican en cada carga y tienen prioridad sobre la config guardada (`applyURLConfig`, app.js:88). Deben ir en la URL raíz (`https://…/?demo=1`), jamás en `…/index.html?demo=1` (el servidor redirige y pierde la query).
 - Intervalos por URL en **segundos**, en config en **ms** (app.js:99).
-- Idioma de UI y commits: español.
+- Idioma de UI, docs y commits: español.
+
+## Vista previa local
+- Servidor estático desechable desde esta carpeta: `python -m http.server 8123` → <http://127.0.0.1:8123/>. Con `file://` no funciona (XHR y CSP).
+- Atajos: `?demo=1` renderiza todo con datos ficticios; `?demo=manana` fija el reloj a las 10:25; `?noidle=1` salta la pantalla de reposo. Para recargar saltándote la caché del navegador, añade un parámetro cualquiera (`&_=42`).
+- En local conviene `?noidle=1` si estás fuera del horario lectivo, si no solo verás el reloj de reposo.
 
 ## Datos y acentos (bug resuelto — no reintroducir)
-- La hoja de Google guarda `miercoles` sin tilde pero el código usa `Miércoles`. Comparar días/nombres SIEMPRE pasando por `quitarAcentos()` (convierte vocales PRECOMPUESTAS U+00E9, no basta borrar marcas combinables U+0300–U+036f), vía `normalizeDayName` / `normNombreKey` (app.js:160-199). Síntoma del bug: "no aparecen los docentes de guardia".
+- La hoja de Google guarda `miercoles` sin tilde pero el código usa `Miércoles`. Comparar días/nombres SIEMPRE pasando por `quitarAcentos()` (convierte vocales PRECOMPUESTAS U+00E9, no basta borrar marcas combinables U+0300–U+036f), vía `normalizeDayName` (app.js:172) / `normNombreKey` (app.js:190). Síntoma del bug: "no aparecen los docentes de guardia".
 - Fuentes: CSV de Google Sheets (`/pub?output=csv`; para ausencias, `?gid=1604837414&single=true&output=csv`). `convertSheetUrl` (app.js:278) añade `_cb=timestamp` para saltar la caché de Google (~5 min).
 - `esURLFuente()` (app.js:293) decide qué URLs se aceptan: solo Sheets/Drive/CSV/imágenes con `http(s)://`.
-- CORS: **no hay proxy** — `proxy.php` se eliminó (no se ejecuta en GitHub Pages y todas las fuentes envían `Access-Control-Allow-Origin: *`). `PROXIES` está vacío y `loadURL` descarga directo; no volver a añadir proxies.
+- CORS: **no hay proxy** — `proxy.php` se eliminó (no se ejecuta en GitHub Pages y todas las fuentes envían `Access-Control-Allow-Origin: *`). `PROXIES` está vacío (app.js:307) y `loadURL` descarga directo; no volver a añadir proxies.
+- `.gitattributes` fija `eol=lf`: escribe siempre LF, no CRLF, o aparece el aviso "LF will be replaced by CRLF" al hacer `git add` (el repo tiene `core.autocrlf=true`).
 
 ## Persistencia y operativa
 - localStorage: `kiosco_config`, `kiosco_data_cache` (últimos datos; sin internet se muestra caché), `kiosco_last_autoreload`.
 - Recarga automática nocturna a las **03:00** (limpia memoria del WebKit).
 - Pantalla de reposo fuera del horario `idleInicio`/`idleFin` (08:00–14:50) y los fines de semana; `?noidle=1` la desactiva.
 - Modos demo (rápido para renderizar todo sin hojas reales, marquesina avisa "DATOS FICTICIOS"): `?demo=1` (horario deslizante) y `?demo=manana` (reloj ficticio 10:25, tramo 3 "AHORA"). `demo`/`noidle` nunca se persisten.
-- Arquitectura mínima: `boot()` (app.js:2002) arranca; `loadData()` (732) descarga; `groupGuardias` (595) indexa guardias por día/tramo; `renderCurrent`/`renderResumen` (1435) pintan. `app.js` es una IIFE con dependencias de DOM: difícil de testear aislada (el harness usado en su día fue ad hoc y temporal).
+- Arquitectura mínima: `boot()` (app.js:2005) arranca; `loadData()` (730) descarga; `groupGuardias` (593) indexa guardias por día/tramo; `renderCurrent` (1012) / `renderResumen` (1435) / `renderActividades` (1518) pintan; `startListScroll` (1658) hace el auto-scroll de las listas. `app.js` es una IIFE con dependencias de DOM: difícil de testear aislada (el harness usado en su día fue ad hoc y temporal).
 
 ## Pendiente conocido
 - La hoja de guardias tiene **nombres duplicados en la misma celda** (tramo 4: "Malia Carpio, Manuela" x2; tramo 5: "Fuentes Gallego, María Begoña" x2). `renderResumen` cuenta asignaciones (19) ≠ docentes distintos (17). Decisión abierta del usuario: deduplicar en la hoja o en código.
+- La columna `width: 130px` de `.actFecha` y el `margin-left: 130px` de `.actInfo` (styles.css) están acoplados: si cambias uno, cambia el otro.
 
 ## Referencias
-- `GUIA_TV_ENGEL.md` (en el repo): despliegue, parámetros de URL completos, troubleshooting.
-- `…\..\NOTAS_CONVERSACION_KIOSCO.md` (fuera del repo): historial de revisión/fixes 2026-09.
+- `README.md` (en el repo): descripción, parámetros de URL, columnas de cada hoja, despliegue.
+- `GUIA_TV_ENGEL.md` (en el repo): despliegue en la TV Engel, ajustes recomendados, troubleshooting.
