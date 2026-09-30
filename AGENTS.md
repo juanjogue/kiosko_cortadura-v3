@@ -11,6 +11,12 @@ Kiosco escolar (IES Fuerte de Cortadura) para Smart TV con WebKit antiguo. La ra
 - Intervalos por URL en **segundos**, en config en **ms** (app.js:99).
 - Idioma de UI, docs y commits: español.
 
+## Despliegue
+- GitHub Pages está en modo **Deploy from a branch**: rama `distV3`, carpeta `/ (root)`, y `distV3` es la rama por defecto del repo. No hay workflow: `deploy = push a distV3`.
+- El build **solo se dispara al hacer push**, no al cambiar la configuración (cambiar el Source no reconstruye nada). Tarda 1-2 min.
+- Para comprobar que la web va actualizada: `https://juanjogue.github.io/kiosko_cortadura-v3/` y mirar el `?vN` del `app.js`/`styles.css` en el `index.html` servido (debe coincidir con el local, y con lo quepedimos en la TV).
+- `master` contiene la app Expo/React Native antigua: no desplegar ni tocar.
+
 ## Vista previa local
 - Servidor estático desechable desde esta carpeta: `python -m http.server 8123` → <http://127.0.0.1:8123/>. Con `file://` no funciona (XHR y CSP).
 - Atajos: `?demo=1` renderiza todo con datos ficticios; `?demo=manana` fija el reloj a las 10:25; `?noidle=1` salta la pantalla de reposo. Para recargar saltándote la caché del navegador, añade un parámetro cualquiera (`&_=42`).
