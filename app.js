@@ -457,6 +457,9 @@
                 else if (lk.indexOf('zona recreo') !== -1) recZ = trim(o[k]);
                 else if (lk.indexOf('observacion') !== -1 && lk.indexOf('recreo') !== -1) recT = trim(o[k]);
             }
+            // en la hoja la columna RECREO suele llevar la etiqueta "RECREO"
+            // escrita a mano, no un grupo: no debe acabar en el campo grupo
+            if (quitarAcentos(recG).toUpperCase() === 'RECREO') recG = '';
             if (recG || recZ || recT) horas['RECREO'] = { grupo: recG, zona: recZ, tarea: recT };
             var key = profesor + '_' + fecha;
             if (!map[key]) map[key] = { profesor: profesor, fecha: fecha, horas: {} };
