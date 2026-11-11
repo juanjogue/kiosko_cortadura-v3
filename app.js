@@ -1486,10 +1486,13 @@
 
         var html = '<div class="screen"><div class="screen-inner">';
         html += '<div class="scr-title">📊 Resumen del Día</div>';
+        // Iconos con glifos de simbolos (BMP): no dependen de la fuente emoji
+        // de la TV. El profesor era U+1F468 ZWJ U+1F3EB (secuencia que el
+        // WebKit antiguo no compone y pinta como dos iconos sueltos).
         html += '<div class="resCards">' +
-            '<div class="resCard" style="border-left-color:#f87171"><span class="ic">❌</span><span class="val" style="color:#f87171">' + totalAus + '</span><span class="lb">Docentes Ausentes</span></div>' +
-            '<div class="resCard" style="border-left-color:#f59e0b"><span class="ic">🛡️</span><span class="val" style="color:#f59e0b">' + ausConGuardia + '</span><span class="lb">Ausentes con Guardia</span></div>' +
-            '<div class="resCard" style="border-left-color:#34d399"><span class="ic">👨‍🏫</span><span class="val" style="color:#34d399">' + totalGuardias + '</span><span class="lb">Docentes de Guardia</span></div>' +
+            '<div class="resCard" style="border-left-color:#f87171"><span class="ic" style="color:#f87171">✖</span><span class="val" style="color:#f87171">' + totalAus + '</span><span class="lb">Docentes Ausentes</span></div>' +
+            '<div class="resCard" style="border-left-color:#f59e0b"><span class="ic" style="color:#f59e0b">⚠</span><span class="val" style="color:#f59e0b">' + ausConGuardia + '</span><span class="lb">Ausentes con Guardia</span></div>' +
+            '<div class="resCard" style="border-left-color:#34d399"><span class="ic" style="color:#34d399">✔</span><span class="val" style="color:#34d399">' + totalGuardias + '</span><span class="lb">Docentes de Guardia</span></div>' +
             '</div>';
 
         var tramoKeys = [];
